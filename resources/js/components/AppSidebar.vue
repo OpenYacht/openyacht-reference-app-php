@@ -9,6 +9,7 @@ import { toUrl } from '@/lib/utils';
 import { dashboard, logout } from '@/routes';
 import { index as apiKeysIndex } from '@/routes/api-keys';
 import { index as importedYachtsIndex } from '@/routes/imported-yachts';
+import { index as nodeDirectoryIndex } from '@/routes/node-directory';
 import { index as partnersIndex } from '@/routes/partners';
 import { edit as editProfile } from '@/routes/profile';
 import { index as rolesIndex } from '@/routes/roles';
@@ -62,6 +63,12 @@ const mainNavItems = computed<NavigationMenuItem[]>(() => [
                   icon: 'i-lucide-network',
                   to: toUrl(partnersIndex()),
                   active: isCurrentOrParentUrl(partnersIndex()),
+              },
+              {
+                  label: 'Node directory',
+                  icon: 'i-lucide-book-open',
+                  to: toUrl(nodeDirectoryIndex()),
+                  active: isCurrentUrl(nodeDirectoryIndex()),
               },
           ]
         : []),

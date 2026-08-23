@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Form, Head, Link } from '@inertiajs/vue3';
 import Heading from '@/components/Heading.vue';
+import { index as directoryIndex } from '@/routes/node-directory';
 import { index, show, store } from '@/routes/partners';
 
 type Partner = {
@@ -45,27 +46,36 @@ const trustColor = (level: string) =>
             description="Brokerages this node exchanges listings with"
         />
 
-        <Form
-            v-bind="store.form()"
-            reset-on-success
-            v-slot="{ errors, processing }"
-            class="flex max-w-xl items-start gap-2"
-        >
-            <UFormField class="flex-1" :error="errors.domain">
-                <UInput
-                    name="domain"
-                    placeholder="openyacht.partner-brokerage.com"
-                    class="w-full"
-                    aria-label="Partner domain"
+        <div class="flex max-w-2xl items-start gap-2">
+            <Form
+                v-bind="store.form()"
+                reset-on-success
+                v-slot="{ errors, processing }"
+                class="flex flex-1 items-start gap-2"
+            >
+                <UFormField class="flex-1" :error="errors.domain">
+                    <UInput
+                        name="domain"
+                        placeholder="openyacht.partner-brokerage.com"
+                        class="w-full"
+                        aria-label="Partner domain"
+                    />
+                </UFormField>
+                <UButton
+                    type="submit"
+                    :loading="processing"
+                    icon="i-lucide-plus"
+                    label="Add partner"
                 />
-            </UFormField>
+            </Form>
             <UButton
-                type="submit"
-                :loading="processing"
-                icon="i-lucide-plus"
-                label="Add partner"
+                :to="directoryIndex.url()"
+                icon="i-lucide-book-open"
+                variant="outline"
+                color="neutral"
+                label="Find partners"
             />
-        </Form>
+        </div>
 
         <div
             v-if="partners.length"

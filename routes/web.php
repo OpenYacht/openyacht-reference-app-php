@@ -3,6 +3,7 @@
 use App\Enums\Role;
 use App\Http\Controllers\App\ApiKeyController;
 use App\Http\Controllers\App\ImportedYachtController;
+use App\Http\Controllers\App\NodeDirectoryController;
 use App\Http\Controllers\App\PartnerController;
 use App\Http\Controllers\App\RoleController;
 use App\Http\Controllers\App\SyncedListingController;
@@ -30,6 +31,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('federation/partners/{partner}/block', [PartnerController::class, 'block'])->name('partners.block');
     Route::post('federation/partners/{partner}/refresh-keys', [PartnerController::class, 'refreshKeys'])->name('partners.refresh-keys');
     Route::post('federation/partners/{partner}/sync', [PartnerController::class, 'sync'])->name('partners.sync');
+
+    Route::get('federation/directory', [NodeDirectoryController::class, 'index'])->name('node-directory.index');
+    Route::post('federation/directory/refresh', [NodeDirectoryController::class, 'refresh'])->name('node-directory.refresh');
+    Route::post('federation/directory/add-partner', [NodeDirectoryController::class, 'addPartner'])->name('node-directory.add-partner');
 
     Route::get('federation/listings', [SyncedListingController::class, 'index'])->name('synced-listings.index');
 

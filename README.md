@@ -16,6 +16,7 @@ This app is reference material first, installable product second. It exists so a
 - Trust-on-first-use partner establishment, signed sync (`openyacht:sync`, scheduled hourly), verbatim copies stored with provenance and never re-served
 - Curated imports: chosen copies become displayable yachts with locally generated WebP renditions (srcset widths plus a cropped hero) from the single wire image
 - Tolerant of schema drift: unknown fields ignored, unreadable values degrade to null — never an exception (see `SchemaToleranceTest`)
+- Node-directory discovery (FP-16): a directory admin page with the vendored advisory phonebook (canonical-URL-only refresh, searchable, add-as-partner through the exact same TOFU path as a hand-typed domain) and this node's own listing consent — findability status plus the signed list/delist/amend requests (also via `openyacht:listing-token`)
 
 **Application shell**
 - Roles and permissions (permission-based authorization throughout — roles are UI), activity log, translation-ready strings
