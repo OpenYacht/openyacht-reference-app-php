@@ -37,6 +37,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('federation/directory/add-partner', [NodeDirectoryController::class, 'addPartner'])->name('node-directory.add-partner');
 
     Route::get('federation/listings', [SyncedListingController::class, 'index'])->name('synced-listings.index');
+    Route::get('federation/listings/{copy}', [SyncedListingController::class, 'show'])->name('synced-listings.show');
 
     Route::get('api-keys', [ApiKeyController::class, 'index'])->name('api-keys.index');
     Route::post('api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');

@@ -5,7 +5,7 @@ import type { ListingBadge } from '@/components/ListingCard.vue';
 import type { ListingFilters } from '@/components/ListingFilterBar.vue';
 import ListingIndexShell from '@/components/ListingIndexShell.vue';
 import { store as importCopy } from '@/routes/imported-yachts';
-import { index } from '@/routes/synced-listings';
+import { index, show } from '@/routes/synced-listings';
 
 type Copy = {
     id: number;
@@ -16,8 +16,7 @@ type Copy = {
     type: string;
     status: string;
     status_label: string;
-    authority_domain: string;
-    canonical_uri: string;
+    node_name: string;
     listing_updated_at: string | null;
     received_at: string;
     signature_verified: boolean;
@@ -90,22 +89,13 @@ const badges = (copy: Copy): ListingBadge[] => [
             v-for="copy in copies"
             :key="copy.id"
             :title="copy.name ?? 'Unnamed'"
+            :href="show(copy.id)"
             :image="copy.thumbnail_url"
             :badges="badges(copy)"
+            :meta="copy.node_name"
             :attribution="copy.attribution"
             :dimmed="copy.is_tombstoned"
         >
-            <template #meta>
-                <p class="truncate text-sm text-muted">
-                    <a
-                        :href="copy.canonical_uri"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="hover:underline"
-                        >{{ copy.authority_domain }}</a
-                    >
-                </p>
-            </template>
             <template
                 v-if="
                     copy.importable &&

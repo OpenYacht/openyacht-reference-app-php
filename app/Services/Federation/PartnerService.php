@@ -28,6 +28,7 @@ class PartnerService
 
         $partner = FederationPartner::create([
             'domain' => $domain,
+            'node_name' => data_get($document, 'node.name'),
             'node_uuid' => data_get($document, 'node.uuid'),
             'keys_json' => $document['keys'],
             'keys_fetched_at' => now(),
@@ -65,6 +66,7 @@ class PartnerService
 
         if ($previousUuid !== null && $freshUuid !== $previousUuid) {
             $partner->update([
+                'node_name' => data_get($document, 'node.name'),
                 'node_uuid' => $freshUuid,
                 'keys_json' => $document['keys'],
                 'keys_fetched_at' => now(),
@@ -82,6 +84,7 @@ class PartnerService
         }
 
         $partner->update([
+            'node_name' => data_get($document, 'node.name'),
             'keys_json' => $document['keys'],
             'keys_fetched_at' => now(),
         ]);

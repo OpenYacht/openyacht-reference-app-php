@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Enums\Permission;
+use App\Models\ListingCopy;
 use App\Models\User;
 
 /**
@@ -18,5 +19,10 @@ class ListingCopyPolicy
     {
         return $user->can(Permission::ManageListings->value)
             || $user->can(Permission::ManageOwnListings->value);
+    }
+
+    public function view(User $user, ListingCopy $copy): bool
+    {
+        return $this->viewAny($user);
     }
 }

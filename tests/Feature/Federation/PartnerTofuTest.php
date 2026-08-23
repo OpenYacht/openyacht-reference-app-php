@@ -44,6 +44,7 @@ test('adding a partner fetches the well-known document over https and stores it 
 
     expect($partner->trust_level)->toBe(TrustLevel::Provisional)
         ->and($partner->node_uuid)->toBe('018f0000-0000-7000-8000-000000000001')
+        ->and($partner->node_name)->toBe('Partner Brokerage')
         ->and($partner->publishedKeys())->toHaveKey('a1b2c3d4e5f60718')
         ->and($partner->keys_fetched_at)->not->toBeNull();
 })->group('FP-2', 'FP-13');
@@ -72,6 +73,7 @@ test('refreshing keys updates the cache when the node UUID is unchanged', functi
 
     Http::fake([
         'openyacht.partner.example/.well-known/openyacht' => Http::response(wellKnownDocument([
+            'node' => ['name' => 'Renamed Brokerage'],
             'keys' => [
                 [
                     'key_id' => 'ffffffffffffffff',
@@ -86,6 +88,7 @@ test('refreshing keys updates the cache when the node UUID is unchanged', functi
     $partner = app(PartnerService::class)->refreshKeys($partner);
 
     expect($partner->trust_level)->toBe(TrustLevel::Verified)
+        ->and($partner->node_name)->toBe('Renamed Brokerage')
         ->and($partner->publishedKeys())->toHaveKey('ffffffffffffffff');
 });
 

@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  *
  * @property int $id
  * @property string $domain
+ * @property string|null $node_name
  * @property string|null $node_uuid
  * @property array<int, array<string, mixed>>|null $keys_json
  * @property Carbon|null $keys_fetched_at
@@ -36,7 +37,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  */
 #[Fillable([
-    'domain', 'node_uuid', 'keys_json', 'keys_fetched_at', 'pinned_key_id',
+    'domain', 'node_name', 'node_uuid', 'keys_json', 'keys_fetched_at', 'pinned_key_id',
     'trust_level', 'field_groups', 'approved_by_user_id', 'last_ok_at',
     'consecutive_failures', 'last_synced_at', 'last_attempted_at',
 ])]

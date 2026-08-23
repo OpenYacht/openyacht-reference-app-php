@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\FiltersListings;
 use App\Http\Controllers\Controller;
 use App\Models\ListingCopy;
 use App\Services\Federation\CategoryVocabulary;
+use App\Services\Federation\RichTextSanitizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -30,7 +31,7 @@ class SyncedListingController extends Controller
             'filters' => $filters,
             'categories' => $categories->all(),
             'copies' => ListingCopy::query()
-                ->with(['partner:id,domain,last_ok_at', 'import:id,listing_copy_id'])
+                ->with(['partner:id,domain,node_name,last_ok_at', 'import:id,listing_copy_id'])
                 ->when($filters['q'] !== '', fn ($query) => $query->where(
                     fn ($query) => $query
                         ->where('name', 'like', "%{$filters['q']}%")
@@ -61,8 +62,10 @@ class SyncedListingController extends Controller
                     'type' => $copy->type,
                     'status' => $copy->status->value,
                     'status_label' => $copy->status->label(),
-                    'authority_domain' => $copy->authority_domain,
-                    'canonical_uri' => $copy->canonical_uri,
+                    // The partner's display name, never the canonical URI:
+                    // that URI is the partner's signed API and dereferences
+                    // to nothing in a browser.
+                    'node_name' => $copy->partner->node_name ?? $copy->authority_domain,
                     'listing_updated_at' => $copy->listing_updated_at?->diffForHumans(),
                     'received_at' => $copy->received_at->diffForHumans(),
                     'signature_verified' => $copy->signature_verified,
@@ -72,6 +75,79 @@ class SyncedListingController extends Controller
                         ? data_get($copy->payload, 'usage.attribution_text')
                         : null,
                 ]),
+        ]);
+    }
+
+    /**
+     * A synced copy rendered from its verbatim payload — remote media
+     * only (https-validated, FP-14), descriptions sanitised (LS-5), and
+     * the provenance block displayed rather than linked: the canonical
+     * URI is the partner's signed API, not a browsable page.
+     */
+    public function show(ListingCopy $copy, RichTextSanitizer $sanitizer): Response
+    {
+        Gate::authorize('view', $copy);
+
+        $copy->load('partner:id,domain,node_name,last_ok_at');
+        $payload = $copy->payload ?? [];
+
+        $descriptionSections = data_get($payload, 'descriptions');
+        $descriptionSections = is_array($descriptionSections) ? $descriptionSections : [];
+
+        $gallery = data_get($payload, 'media.gallery');
+
+        return Inertia::render('federation/listings/Show', [
+            'copy' => [
+                'id' => $copy->id,
+                'name' => $copy->name,
+                'type' => $copy->type,
+                'status' => $copy->status->value,
+                'status_label' => $copy->status->label(),
+                'imported' => $copy->import()->exists(),
+                'importable' => $copy->tombstoned_at === null
+                    && data_get($payload, 'usage.display') !== false,
+                'is_stale' => $copy->partner->isStale(),
+                'is_tombstoned' => $copy->tombstoned_at !== null,
+                'node_name' => $copy->partner->node_name ?? $copy->authority_domain,
+                'builder_name' => data_get($payload, 'vessel.builder.name'),
+                'model_name' => data_get($payload, 'vessel.model.name'),
+                'year_built' => data_get($payload, 'vessel.year_built'),
+                'loa_m' => data_get($payload, 'vessel.loa_m'),
+                'price_amount' => data_get($payload, 'listing.price.amount'),
+                'price_currency' => data_get($payload, 'listing.price.currency'),
+                'location_display' => data_get($payload, 'listing.location.display'),
+                'summary' => data_get($payload, 'listing.summary'),
+                'hero_url' => $this->httpsUrlOrNull(data_get($payload, 'media.profile.url')),
+                'gallery' => collect(is_array($gallery) ? $gallery : [])
+                    ->map(fn ($item): ?array => is_array($item) && $this->httpsUrlOrNull($item['url'] ?? null) !== null
+                        ? [
+                            'url' => $item['url'],
+                            'caption' => is_string($item['caption'] ?? null) ? $item['caption'] : null,
+                        ]
+                        : null)
+                    ->filter()
+                    ->values(),
+                'vessel' => data_get($payload, 'vessel'),
+                'specifications' => data_get($payload, 'specifications'),
+                'descriptions' => collect($descriptionSections)
+                    ->filter(fn ($section): bool => is_array($section) && is_string($section['content'] ?? null))
+                    ->map(fn (array $section): array => [
+                        'section' => is_string($section['section'] ?? null) ? $section['section'] : null,
+                        // LS-5: sanitise before rendering, regardless of
+                        // what the authority sent.
+                        'content' => $sanitizer->sanitize($section['content']),
+                    ])
+                    ->values(),
+                'features' => data_get($payload, 'features', []),
+                'brokers' => data_get($payload, 'listing.brokers', []),
+                'price_history' => data_get($payload, 'listing.price_history', []),
+                'compliance' => data_get($payload, 'compliance'),
+                'attribution' => data_get($payload, 'usage.attribution_required') === true
+                    ? data_get($payload, 'usage.attribution_text')
+                    : null,
+                'provenance' => $copy->provenance(),
+                'payload' => $payload,
+            ],
         ]);
     }
 

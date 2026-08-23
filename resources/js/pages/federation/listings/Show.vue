@@ -1,16 +1,8 @@
 <script setup lang="ts">
-import { Head, setLayoutProps } from '@inertiajs/vue3';
+import { Head, router, setLayoutProps, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import { index, show } from '@/routes/imported-yachts';
-
-type SrcsetMap = Record<number, string>;
-
-type GalleryItem = {
-    id: number;
-    kind: string;
-    caption: string | null;
-    srcset: SrcsetMap;
-};
+import { store as importCopy } from '@/routes/imported-yachts';
+import { index, show } from '@/routes/synced-listings';
 
 type Broker = {
     name: string | null;
@@ -19,12 +11,17 @@ type Broker = {
     phone: string | null;
 };
 
-type Yacht = {
+type Copy = {
     id: number;
-    name: string;
+    name: string | null;
     type: string;
     status: string;
     status_label: string;
+    imported: boolean;
+    importable: boolean;
+    is_stale: boolean;
+    is_tombstoned: boolean;
+    node_name: string;
     builder_name: string | null;
     model_name: string | null;
     year_built: number | null;
@@ -33,18 +30,16 @@ type Yacht = {
     price_currency: string | null;
     location_display: string | null;
     summary: string | null;
-    attribution_text: string | null;
-    is_stale: boolean;
-    hero: SrcsetMap;
-    gallery: GalleryItem[];
+    hero_url: string | null;
+    gallery: { url: string; caption: string | null }[];
     vessel: Record<string, unknown> | null;
     specifications: Record<string, unknown> | null;
     descriptions: { section: string | null; content: string }[];
     features: { category: string | null; name: string; slug: string | null }[];
-    charter: Record<string, unknown> | null;
     brokers: Broker[];
     price_history: { amount: string; currency: string; changed_at: string }[];
     compliance: Record<string, unknown> | null;
+    attribution: string | null;
     provenance: {
         canonical: string;
         authority: string;
@@ -55,38 +50,33 @@ type Yacht = {
 };
 
 const props = defineProps<{
-    yacht: Yacht;
+    copy: Copy;
 }>();
 
 setLayoutProps({
     breadcrumbs: [
-        { title: 'Imported yachts', href: index() },
-        { title: props.yacht.name, href: show(props.yacht.id) },
+        { title: 'Synced listings', href: index() },
+        { title: props.copy.name ?? 'Unnamed', href: show(props.copy.id) },
     ],
 });
 
+const page = usePage();
+
+const doImport = () => {
+    router.post(importCopy.url({ copy: props.copy.id }), {});
+};
+
 const subtitle = computed(() =>
     [
-        [props.yacht.builder_name, props.yacht.model_name]
+        [props.copy.builder_name, props.copy.model_name]
             .filter(Boolean)
             .join(' '),
-        props.yacht.year_built,
-        props.yacht.loa_m ? `${props.yacht.loa_m}m` : null,
+        props.copy.year_built,
+        props.copy.loa_m ? `${props.copy.loa_m}m` : null,
     ]
         .filter(Boolean)
         .join(' · '),
 );
-
-const srcset = (map: SrcsetMap) =>
-    Object.entries(map)
-        .map(([width, url]) => `${url} ${width}w`)
-        .join(', ');
-
-const largest = (map: SrcsetMap) => {
-    const widths = Object.keys(map).map(Number);
-
-    return widths.length ? map[Math.max(...widths)] : null;
-};
 
 const formatPrice = (amount: string | null, currency: string | null) => {
     if (!amount || !currency) {
@@ -150,7 +140,7 @@ const specRows = computed(() =>
         .map(([key, label]) => ({
             key,
             label,
-            value: props.yacht.specifications?.[key],
+            value: props.copy.specifications?.[key],
         }))
         .filter(
             (row) =>
@@ -166,16 +156,13 @@ const specRows = computed(() =>
 
 const engines = computed(
     () =>
-        (props.yacht.specifications?.engines ?? []) as Record<
-            string,
-            unknown
-        >[],
+        (props.copy.specifications?.engines ?? []) as Record<string, unknown>[],
 );
 
 const featureGroups = computed(() => {
     const groups = new Map<string, string[]>();
 
-    for (const feature of props.yacht.features ?? []) {
+    for (const feature of props.copy.features ?? []) {
         const category = feature.category ?? 'other';
 
         groups.set(category, [...(groups.get(category) ?? []), feature.name]);
@@ -187,14 +174,8 @@ const featureGroups = computed(() => {
     }));
 });
 
-const identifiers = computed(() =>
-    (['hin', 'imo', 'mmsi', 'official_number'] as const)
-        .map((key) => ({ key, value: props.yacht.vessel?.[key] }))
-        .filter((row) => row.value),
-);
-
 const complianceRows = computed(() =>
-    Object.entries(props.yacht.compliance ?? {})
+    Object.entries(props.copy.compliance ?? {})
         .filter(
             ([key, value]) =>
                 key !== 'classification' &&
@@ -212,13 +193,11 @@ const complianceRows = computed(() =>
         })),
 );
 
-const payloadJson = computed(() =>
-    JSON.stringify(props.yacht.payload, null, 2),
-);
+const payloadJson = computed(() => JSON.stringify(props.copy.payload, null, 2));
 </script>
 
 <template>
-    <Head :title="yacht.name" />
+    <Head :title="copy.name ?? 'Unnamed'" />
 
     <div class="mx-auto w-full max-w-5xl space-y-8 px-4 py-6">
         <div
@@ -227,51 +206,80 @@ const payloadJson = computed(() =>
             <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                     <h2 class="text-2xl font-semibold tracking-tight">
-                        {{ yacht.name }}
+                        {{ copy.name ?? 'Unnamed' }}
                     </h2>
                     <UBadge
-                        v-if="yacht.status !== 'active'"
+                        v-if="copy.status !== 'active'"
                         color="neutral"
                         variant="subtle"
-                        :label="yacht.status_label"
+                        :label="copy.status_label"
                     />
                     <UBadge
-                        v-if="yacht.is_stale"
+                        v-if="copy.imported"
+                        color="info"
+                        variant="subtle"
+                        label="Imported"
+                    />
+                    <UBadge
+                        v-if="copy.is_stale"
                         color="warning"
                         variant="outline"
                         label="Stale"
                     />
+                    <UBadge
+                        v-if="copy.is_tombstoned"
+                        color="neutral"
+                        variant="outline"
+                        label="Removed by partner"
+                    />
                 </div>
                 <p v-if="subtitle" class="mt-1 text-muted">{{ subtitle }}</p>
-                <p v-if="yacht.location_display" class="text-sm text-muted">
-                    {{ yacht.location_display }}
+                <p class="text-sm text-muted">
+                    Shared by {{ copy.node_name }}
+                    <template v-if="copy.location_display">
+                        · {{ copy.location_display }}
+                    </template>
                 </p>
             </div>
-            <p class="text-xl font-semibold whitespace-nowrap">
-                {{ formatPrice(yacht.price_amount, yacht.price_currency) }}
-            </p>
+            <div class="flex items-center gap-3">
+                <p class="text-xl font-semibold whitespace-nowrap">
+                    {{ formatPrice(copy.price_amount, copy.price_currency) }}
+                </p>
+                <UButton
+                    v-if="
+                        copy.importable &&
+                        !copy.imported &&
+                        page.props.auth.canManageListings
+                    "
+                    color="neutral"
+                    variant="outline"
+                    icon="i-lucide-download"
+                    label="Import"
+                    @click="doImport"
+                />
+            </div>
         </div>
 
         <div
-            v-if="largest(yacht.hero)"
+            v-if="copy.hero_url"
             class="overflow-hidden rounded-xl bg-elevated"
         >
+            <!-- Remote partner media: https-validated server-side (FP-14),
+                 rendered at the single wire size. -->
             <img
-                :src="largest(yacht.hero)!"
-                :srcset="srcset(yacht.hero)"
-                sizes="(min-width: 1024px) 960px, 100vw"
-                :alt="yacht.name"
+                :src="copy.hero_url"
+                :alt="copy.name ?? 'Listing image'"
                 class="aspect-video w-full object-cover"
             />
         </div>
 
-        <p v-if="yacht.summary" class="max-w-3xl text-muted">
-            {{ yacht.summary }}
+        <p v-if="copy.summary" class="max-w-3xl text-muted">
+            {{ copy.summary }}
         </p>
 
-        <section v-if="yacht.descriptions.length" class="space-y-6">
+        <section v-if="copy.descriptions.length" class="space-y-6">
             <article
-                v-for="(description, i) in yacht.descriptions"
+                v-for="(description, i) in copy.descriptions"
                 :key="i"
                 class="max-w-3xl"
             >
@@ -361,32 +369,27 @@ const payloadJson = computed(() =>
             </div>
         </section>
 
-        <section v-if="yacht.gallery.length > 1">
+        <section v-if="copy.gallery.length">
             <h3 class="mb-3 text-lg font-semibold">Gallery</h3>
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <img
-                    v-for="item in yacht.gallery"
-                    :key="item.id"
-                    :src="largest(item.srcset) ?? undefined"
-                    :srcset="srcset(item.srcset)"
-                    sizes="(min-width: 640px) 33vw, 50vw"
-                    :alt="item.caption ?? yacht.name"
+                    v-for="(item, i) in copy.gallery"
+                    :key="i"
+                    :src="item.url"
+                    :alt="item.caption ?? copy.name ?? 'Listing image'"
                     class="aspect-[4/3] w-full rounded-lg object-cover"
                     loading="lazy"
                 />
             </div>
         </section>
 
-        <section
-            v-if="yacht.brokers.length || identifiers.length"
-            class="grid gap-4 sm:grid-cols-2"
-        >
-            <UCard v-if="yacht.brokers.length">
+        <section v-if="copy.brokers.length" class="grid gap-4 sm:grid-cols-2">
+            <UCard>
                 <template #header>
                     <h3 class="font-semibold">Brokers</h3>
                 </template>
                 <ul class="space-y-3 text-sm">
-                    <li v-for="(broker, i) in yacht.brokers" :key="i">
+                    <li v-for="(broker, i) in copy.brokers" :key="i">
                         <p class="font-medium">{{ broker.name }}</p>
                         <p v-if="broker.title" class="text-muted">
                             {{ broker.title }}
@@ -400,31 +403,19 @@ const payloadJson = computed(() =>
                     </li>
                 </ul>
             </UCard>
-
-            <UCard v-if="identifiers.length">
-                <template #header>
-                    <h3 class="font-semibold">Vessel identifiers</h3>
-                </template>
-                <dl class="space-y-2 text-sm">
-                    <div v-for="row in identifiers" :key="row.key">
-                        <dt class="text-muted uppercase">{{ row.key }}</dt>
-                        <dd class="font-mono">{{ row.value }}</dd>
-                    </div>
-                </dl>
-            </UCard>
         </section>
 
         <section
-            v-if="yacht.price_history.length > 1 || complianceRows.length"
+            v-if="copy.price_history.length > 1 || complianceRows.length"
             class="grid gap-4 sm:grid-cols-2"
         >
-            <UCard v-if="yacht.price_history.length > 1">
+            <UCard v-if="copy.price_history.length > 1">
                 <template #header>
                     <h3 class="font-semibold">Price history</h3>
                 </template>
                 <ul class="space-y-2 text-sm">
                     <li
-                        v-for="(entry, i) in yacht.price_history"
+                        v-for="(entry, i) in copy.price_history"
                         :key="i"
                         class="flex justify-between gap-4"
                     >
@@ -461,27 +452,38 @@ const payloadJson = computed(() =>
             </template>
             <dl class="space-y-2 text-sm">
                 <div>
-                    <dt class="text-muted">Authority</dt>
-                    <dd>{{ yacht.provenance.authority }}</dd>
+                    <dt class="text-muted">Shared by</dt>
+                    <dd>
+                        {{ copy.node_name }}
+                        <span class="text-muted"
+                            >({{ copy.provenance.authority }})</span
+                        >
+                    </dd>
                 </div>
                 <div>
                     <dt class="text-muted">Canonical listing</dt>
                     <!-- The canonical URI is the partner's signed API — an
                          identifier, not a browsable link (ID-2). -->
                     <dd class="font-mono text-xs break-all">
-                        {{ yacht.provenance.canonical }}
+                        {{ copy.provenance.canonical }}
                     </dd>
                 </div>
                 <div>
                     <dt class="text-muted">Received</dt>
-                    <dd>{{ yacht.provenance.received_at }}</dd>
+                    <dd>
+                        {{ copy.provenance.received_at }}
+                        <UBadge
+                            v-if="copy.provenance.signature_verified"
+                            color="success"
+                            variant="subtle"
+                            size="sm"
+                            label="Signature verified"
+                        />
+                    </dd>
                 </div>
             </dl>
-            <p
-                v-if="yacht.attribution_text"
-                class="mt-3 text-xs text-dimmed italic"
-            >
-                {{ yacht.attribution_text }}
+            <p v-if="copy.attribution" class="mt-3 text-xs text-dimmed italic">
+                {{ copy.attribution }}
             </p>
         </UCard>
 
