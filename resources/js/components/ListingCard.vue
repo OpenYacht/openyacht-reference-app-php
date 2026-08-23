@@ -9,7 +9,8 @@ export type ListingBadge = {
 <script setup lang="ts">
 /*
  * The normalised card every listing index uses (own, imported, synced):
- * hero image with overlaid badges, linked title, muted meta line, body
+ * hero image with overlaid badges (image and title both link to the
+ * detail page when one exists), muted meta line, body
  * slot for page-specific lines (price, provenance, actions), and optional
  * attribution. One component keeps the three pages from drifting apart.
  */
@@ -36,7 +37,11 @@ defineProps<{
         class="overflow-hidden"
         :class="{ 'opacity-60': dimmed }"
     >
-        <div class="relative aspect-video bg-elevated">
+        <component
+            :is="href ? Link : 'div'"
+            :href="href"
+            class="relative block aspect-video bg-elevated"
+        >
             <img
                 v-if="image"
                 :src="image"
@@ -69,7 +74,7 @@ defineProps<{
                     :label="badge.label"
                 />
             </div>
-        </div>
+        </component>
 
         <div class="space-y-2 p-4">
             <div class="flex items-start justify-between gap-2">
