@@ -1,0 +1,4 @@
+resources/js/components/ui/*
+resources/views/mail/*
+auto-imports.d.ts
+components.d.ts

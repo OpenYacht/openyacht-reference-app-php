@@ -1,0 +1,88 @@
+<?php
+
+use App\Enums\Role;
+use App\Enums\TrustLevel;
+use App\Models\FederationPartner;
+use App\Models\User;
+use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Facades\Http;
+
+beforeEach(function () {
+    $this->seed(RoleSeeder::class);
+});
+
+function federationActor(Role $role = Role::SuperAdmin): User
+{
+    return tap(User::factory()->create(), fn (User $user) => $user->assignRole($role));
+}
+
+test('partner management requires the federation permission', function () {
+    FederationPartner::factory()->create();
+
+    $this->actingAs(federationActor(Role::Admin))
+        ->get(route('partners.index'))
+        ->assertForbidden();
+
+    $this->actingAs(federationActor(Role::SuperAdmin))
+        ->get(route('partners.index'))
+        ->assertOk();
+});
+
+test('a partner can be added by domain through the UI', function () {
+    Http::fake([
+        'openyacht.partner.example/.well-known/openyacht' => Http::response([
+            'openyacht' => '1.0',
+            'node' => ['uuid' => '018f0000-0000-7000-8000-000000000001', 'name' => 'Partner'],
+            'keys' => [['key_id' => 'a1b2c3d4e5f60718', 'public_key' => base64_encode(str_repeat('k', 32))]],
+        ]),
+    ]);
+
+    $this->actingAs(federationActor())
+        ->post(route('partners.store'), ['domain' => 'OpenYacht.Partner.Example'])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect(FederationPartner::query()->where('domain', 'openyacht.partner.example')->exists())->toBeTrue();
+});
+
+test('an unreachable domain surfaces as a validation error', function () {
+    Http::fake([
+        'unreachable.example/.well-known/openyacht' => Http::response(null, 500),
+    ]);
+
+    $this->actingAs(federationActor())
+        ->post(route('partners.store'), ['domain' => 'unreachable.example'])
+        ->assertSessionHasErrors('domain');
+
+    expect(FederationPartner::count())->toBe(0);
+});
+
+test('a domain with a scheme or path is rejected', function () {
+    $this->actingAs(federationActor())
+        ->post(route('partners.store'), ['domain' => 'https://partner.example/path'])
+        ->assertSessionHasErrors('domain');
+});
+
+test('a partner can be approved and blocked through the UI', function () {
+    $partner = FederationPartner::factory()->create();
+    $actor = federationActor();
+
+    $this->actingAs($actor)
+        ->post(route('partners.approve', $partner))
+        ->assertRedirect();
+
+    expect($partner->refresh()->trust_level)->toBe(TrustLevel::Verified)
+        ->and($partner->approved_by_user_id)->toBe($actor->id);
+
+    $this->actingAs($actor)
+        ->post(route('partners.block', $partner))
+        ->assertRedirect();
+
+    expect($partner->refresh()->trust_level)->toBe(TrustLevel::Blocked);
+});
+
+test('the synced listings page is visible to any authenticated user', function () {
+    $this->actingAs(federationActor(Role::Viewer))
+        ->get(route('synced-listings.index'))
+        ->assertOk();
+});

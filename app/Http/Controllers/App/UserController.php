@@ -1,0 +1,70 @@
+<?php
+
+namespace App\Http\Controllers\App;
+
+use App\Enums\Role;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\UpdateUserRoleRequest;
+use App\Models\User;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Gate;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class UserController extends Controller
+{
+    public function index(): Response
+    {
+        Gate::authorize('viewAny', User::class);
+
+        return Inertia::render('users/Index', [
+            'users' => User::query()
+                ->with('roles:id,name')
+                ->orderBy('name')
+                ->get()
+                ->map(function (User $user): array {
+                    $role = $user->getRoleNames()->first();
+
+                    return [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'role' => $role,
+                        'role_label' => $role === null ? null : Role::from($role)->label(),
+                        'created_at' => $user->created_at?->toDateString(),
+                    ];
+                }),
+            'roles' => collect(Role::cases())
+                ->map(fn (Role $role): array => [
+                    'value' => $role->value,
+                    'label' => $role->label(),
+                ])
+                ->all(),
+        ]);
+    }
+
+    public function update(UpdateUserRoleRequest $request, User $user): RedirectResponse
+    {
+        $previousRole = $user->getRoleNames()->first();
+        $newRole = Role::from($request->string('role')->value());
+
+        $user->syncRoles([$newRole]);
+
+        activity('users')
+            ->causedBy($request->user())
+            ->performedOn($user)
+            ->withProperties(['from' => $previousRole, 'to' => $newRole->value])
+            ->event('role_changed')
+            ->log("Role changed from {$previousRole} to {$newRole->value}");
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('users.role_changed', [
+                'name' => $user->name,
+                'role' => $newRole->label(),
+            ]),
+        ]);
+
+        return back();
+    }
+}
