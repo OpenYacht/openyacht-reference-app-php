@@ -22,6 +22,15 @@ This app is reference material first, installable product second. It exists so a
 - Unified read API (`/api/v1/yachts`) carrying own + imported inventory in the wire-schema shape, with hashed API keys, scopes, and per-key rate limiting — so the node can feed a public website
 - Listing pages with shared card grid and faceted filtering (search, location, category, size)
 
+## Not yet implemented
+
+The optional protocol features this node's capabilities endpoint honestly advertises as `false`:
+
+- **Charter listings** — the wire's `charter` block (rates, operating areas from the destination registry, crew, guest capacities in action). Sale listings correctly carry `charter: null`, but no charter listing has flowed through this node yet.
+- **Subscriptions (push)** — signed webhook delivery of changes (`POST /openyacht/v1/subscriptions`). Polling `updated_since` is the mandatory baseline and is fully implemented; push is the optional layer on top.
+
+Also pending: an import connector for an incumbent feed, per-partner sharing-rules UI, an installation wizard, and signed URLs for the `media_original` field group.
+
 ## Requirements
 
 - PHP 8.4+ with the `sodium` extension (Ed25519)
