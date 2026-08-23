@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { dashboard, login, register } from '@/routes';
-
-const toast = useToast();
+import { dashboard, login } from '@/routes';
 </script>
 
 <template>
@@ -22,25 +20,7 @@ const toast = useToast();
                     :to="dashboard.url()"
                     label="Dashboard"
                 />
-                <template v-else>
-                    <UButton
-                        :to="login.url()"
-                        label="Log in"
-                        variant="outline"
-                    />
-                    <UButton :to="register.url()" label="Register" />
-                </template>
-                <UButton
-                    label="Test toast"
-                    color="neutral"
-                    variant="subtle"
-                    @click="
-                        toast.add({
-                            title: 'Nuxt UI is working',
-                            description: 'Toasts render through UApp.',
-                        })
-                    "
-                />
+                <UButton v-else :to="login.url()" label="Log in" />
             </div>
         </div>
     </UApp>

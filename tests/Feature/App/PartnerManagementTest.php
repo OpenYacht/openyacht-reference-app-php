@@ -81,8 +81,9 @@ test('a partner can be approved and blocked through the UI', function () {
     expect($partner->refresh()->trust_level)->toBe(TrustLevel::Blocked);
 });
 
-test('the synced listings page is visible to any authenticated user', function () {
+test('the synced listings page requires a listings permission', function () {
     $this->actingAs(federationActor(Role::Viewer))
         ->get(route('synced-listings.index'))
-        ->assertOk();
+        ->assertForbidden();
 });
+

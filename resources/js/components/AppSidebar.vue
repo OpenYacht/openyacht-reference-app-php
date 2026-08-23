@@ -39,18 +39,22 @@ const mainNavItems = computed<NavigationMenuItem[]>(() => [
               },
           ]
         : []),
-    {
-        label: 'Imported yachts',
-        icon: 'i-lucide-ship',
-        to: toUrl(importedYachtsIndex()),
-        active: isCurrentUrl(importedYachtsIndex()),
-    },
-    {
-        label: 'Synced listings',
-        icon: 'i-lucide-refresh-cw',
-        to: toUrl(syncedListingsIndex()),
-        active: isCurrentUrl(syncedListingsIndex()),
-    },
+    ...(page.props.auth.canViewPartnerListings
+        ? [
+              {
+                  label: 'Imported yachts',
+                  icon: 'i-lucide-ship',
+                  to: toUrl(importedYachtsIndex()),
+                  active: isCurrentUrl(importedYachtsIndex()),
+              },
+              {
+                  label: 'Synced listings',
+                  icon: 'i-lucide-refresh-cw',
+                  to: toUrl(syncedListingsIndex()),
+                  active: isCurrentUrl(syncedListingsIndex()),
+              },
+          ]
+        : []),
     ...(page.props.auth.canManageFederation
         ? [
               {

@@ -3,7 +3,6 @@ import { Form, Head } from '@inertiajs/vue3';
 import PasskeyVerify from '@/components/PasskeyVerify.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
 import TextLink from '@/components/TextLink.vue';
-import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
 
@@ -90,11 +89,6 @@ defineProps<{
                 data-test="login-button"
                 label="Log in"
             />
-        </div>
-
-        <div class="text-center text-sm text-muted">
-            Don't have an account?
-            <TextLink :href="register()" :tabindex="5">Sign up</TextLink>
         </div>
     </Form>
 </template>

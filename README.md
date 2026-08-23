@@ -42,6 +42,7 @@ Also pending: an import connector for an incumbent feed, per-partner sharing-rul
 ```bash
 composer setup            # install, .env, key, migrate, build
 php artisan openyacht:install   # mint the node UUID + initial federation keypair
+php artisan openyacht:create-user   # create the first user — there is no self-registration
 ```
 
 Then set the node's identity in `.env`:

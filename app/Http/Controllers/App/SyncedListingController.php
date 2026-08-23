@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ListingCopy;
 use App\Services\Federation\CategoryVocabulary;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,6 +22,8 @@ class SyncedListingController extends Controller
 
     public function index(Request $request, CategoryVocabulary $categories): Response
     {
+        Gate::authorize('viewAny', ListingCopy::class);
+
         $filters = $this->listingFilters($request);
 
         return Inertia::render('federation/listings/Index', [

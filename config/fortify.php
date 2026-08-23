@@ -161,7 +161,8 @@ return [
     */
 
     'features' => [
-        Features::registration(),
+        // Self-registration is intentionally disabled: users are created
+        // via `php artisan openyacht:create-user` (or by an administrator).
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::twoFactorAuthentication([

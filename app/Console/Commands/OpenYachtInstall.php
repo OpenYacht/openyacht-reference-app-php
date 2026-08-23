@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\User;
 use App\Services\Federation\KeyManager;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
@@ -48,6 +49,10 @@ class OpenYachtInstall extends Command
         } else {
             $key = $keys->generate();
             $this->info("Federation keypair generated: {$key->key_id}");
+        }
+
+        if (User::query()->count() === 0) {
+            $this->info('No users yet — self-registration is disabled, create the first user with: php artisan openyacht:create-user');
         }
 
         return self::SUCCESS;

@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Enums\Permission;
+use App\Models\ListingCopy;
 use App\Models\SaleYacht;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -48,6 +49,7 @@ class HandleInertiaRequests extends Middleware
                 'canManageFederation' => $request->user()?->can(Permission::ManageFederation->value) ?? false,
                 'canManageListings' => $request->user()?->can(Permission::ManageListings->value) ?? false,
                 'canManageOwnYachts' => $request->user()?->can('viewAny', SaleYacht::class) ?? false,
+                'canViewPartnerListings' => $request->user()?->can('viewAny', ListingCopy::class) ?? false,
                 'canManageSettings' => $request->user()?->can(Permission::ManageSettings->value) ?? false,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',

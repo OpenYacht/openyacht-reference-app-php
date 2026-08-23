@@ -25,6 +25,8 @@ class ImportedYachtController extends Controller
 
     public function index(Request $request, CategoryVocabulary $categories): Response
     {
+        Gate::authorize('viewAny', ImportedYacht::class);
+
         $filters = $this->listingFilters($request);
 
         return Inertia::render('imported-yachts/Index', [
@@ -80,6 +82,8 @@ class ImportedYachtController extends Controller
 
     public function show(ImportedYacht $importedYacht, RichTextSanitizer $sanitizer): Response
     {
+        Gate::authorize('view', $importedYacht);
+
         $importedYacht->load(['media', 'copy.partner:id,domain,last_ok_at']);
         $payload = $importedYacht->copy->payload ?? [];
         $profile = $importedYacht->profileMedia();
