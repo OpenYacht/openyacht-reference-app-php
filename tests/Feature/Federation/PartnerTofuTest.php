@@ -112,6 +112,130 @@ test('a changed node UUID downgrades the partner to provisional and notifies adm
     expect(Activity::query()->where('event', 'partner_uuid_changed')->exists())->toBeTrue();
 })->group('FP-11');
 
+test('an administrator key refresh moves the pin to the rotated current signing key', function () {
+    $admin = User::factory()->create();
+    $partner = FederationPartner::factory()->verified()->create([
+        'domain' => 'openyacht.partner.example',
+        'node_uuid' => '018f0000-0000-7000-8000-000000000001',
+        'pinned_key_id' => 'a1b2c3d4e5f60718',
+    ]);
+
+    Http::fake([
+        'openyacht.partner.example/.well-known/openyacht' => Http::response(wellKnownDocument([
+            'keys' => [
+                [
+                    'key_id' => 'ffffffffffffffff',
+                    'algorithm' => 'ed25519',
+                    'public_key' => base64_encode(str_repeat('n', 32)),
+                    'created_at' => '2026-08-23T10:30:00Z',
+                ],
+                [
+                    'key_id' => 'a1b2c3d4e5f60718',
+                    'algorithm' => 'ed25519',
+                    'public_key' => base64_encode(str_repeat('k', 32)),
+                    'created_at' => '2026-08-20T10:30:00Z',
+                ],
+            ],
+        ])),
+    ]);
+
+    $partner = app(PartnerService::class)->refreshKeys($partner, pinConfirmedBy: $admin);
+
+    expect($partner->pinned_key_id)->toBe('ffffffffffffffff');
+
+    expect(Activity::query()->where('event', 'partner_key_repinned')->exists())->toBeTrue();
+})->group('FP-12');
+
+test('an automatic key refresh never moves the pin', function () {
+    $partner = FederationPartner::factory()->verified()->create([
+        'domain' => 'openyacht.partner.example',
+        'node_uuid' => '018f0000-0000-7000-8000-000000000001',
+        'pinned_key_id' => 'a1b2c3d4e5f60718',
+    ]);
+
+    Http::fake([
+        'openyacht.partner.example/.well-known/openyacht' => Http::response(wellKnownDocument([
+            'keys' => [
+                [
+                    'key_id' => 'ffffffffffffffff',
+                    'algorithm' => 'ed25519',
+                    'public_key' => base64_encode(str_repeat('n', 32)),
+                    'created_at' => '2026-08-23T10:30:00Z',
+                ],
+            ],
+        ])),
+    ]);
+
+    $partner = app(PartnerService::class)->refreshKeys($partner);
+
+    expect($partner->pinned_key_id)->toBe('a1b2c3d4e5f60718')
+        ->and($partner->publishedKeys())->toHaveKey('ffffffffffffffff');
+})->group('FP-12');
+
+test('a key refresh on a UUID-changed document leaves the pin untouched', function () {
+    $admin = User::factory()->create();
+    $partner = FederationPartner::factory()->verified()->create([
+        'domain' => 'openyacht.partner.example',
+        'node_uuid' => '018f0000-0000-7000-8000-000000000001',
+        'pinned_key_id' => 'a1b2c3d4e5f60718',
+    ]);
+
+    Http::fake([
+        'openyacht.partner.example/.well-known/openyacht' => Http::response(wellKnownDocument([
+            'node' => ['uuid' => '018f9999-9999-7999-8999-999999999999'],
+            'keys' => [
+                [
+                    'key_id' => 'ffffffffffffffff',
+                    'algorithm' => 'ed25519',
+                    'public_key' => base64_encode(str_repeat('n', 32)),
+                    'created_at' => '2026-08-23T10:30:00Z',
+                ],
+            ],
+        ])),
+    ]);
+
+    $partner = app(PartnerService::class)->refreshKeys($partner, pinConfirmedBy: $admin);
+
+    expect($partner->trust_level)->toBe(TrustLevel::Provisional)
+        ->and($partner->pinned_key_id)->toBe('a1b2c3d4e5f60718');
+
+    expect(Activity::query()->where('event', 'partner_key_repinned')->exists())->toBeFalse();
+})->group('FP-11', 'FP-12');
+
+test('the current signing key falls back to the newest created_at when a node orders differently', function () {
+    $admin = User::factory()->create();
+    $partner = FederationPartner::factory()->verified()->create([
+        'domain' => 'openyacht.partner.example',
+        'node_uuid' => '018f0000-0000-7000-8000-000000000001',
+        'pinned_key_id' => 'a1b2c3d4e5f60718',
+    ]);
+
+    // Oldest-first ordering: the conventional first entry is the old
+    // pinned key, but a newer created_at further down wins.
+    Http::fake([
+        'openyacht.partner.example/.well-known/openyacht' => Http::response(wellKnownDocument([
+            'keys' => [
+                [
+                    'key_id' => 'a1b2c3d4e5f60718',
+                    'algorithm' => 'ed25519',
+                    'public_key' => base64_encode(str_repeat('k', 32)),
+                    'created_at' => '2026-08-20T10:30:00Z',
+                ],
+                [
+                    'key_id' => 'ffffffffffffffff',
+                    'algorithm' => 'ed25519',
+                    'public_key' => base64_encode(str_repeat('n', 32)),
+                    'created_at' => '2026-08-23T10:30:00Z',
+                ],
+            ],
+        ])),
+    ]);
+
+    $partner = app(PartnerService::class)->refreshKeys($partner, pinConfirmedBy: $admin);
+
+    expect($partner->pinned_key_id)->toBe('ffffffffffffffff');
+})->group('FP-12');
+
 test('approving a partner records the approver and verified trust', function () {
     $partner = FederationPartner::factory()->create();
     $approver = User::factory()->create();

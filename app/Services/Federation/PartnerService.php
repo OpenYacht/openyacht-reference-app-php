@@ -49,8 +49,15 @@ class PartnerService
      * keys. A changed node UUID means the domain now hosts a different
      * installation: downgrade to provisional and notify administrators
      * (FP-11).
+     *
+     * Called with $pinConfirmedBy — the explicit administrator action —
+     * this refresh is also the FP-12 pin confirmation: the pin moves to
+     * the partner's current signing key, so a pinned partner that
+     * rotated is accepted again. The verifier's automatic recovery
+     * refetch calls without it and never touches the pin, and a changed
+     * node UUID always leaves the pin where it was (FP-11 wins).
      */
-    public function refreshKeys(FederationPartner $partner): FederationPartner
+    public function refreshKeys(FederationPartner $partner, ?User $pinConfirmedBy = null): FederationPartner
     {
         $document = $this->wellKnown->fetch($partner->domain);
         $freshUuid = data_get($document, 'node.uuid');
@@ -79,7 +86,37 @@ class PartnerService
             'keys_fetched_at' => now(),
         ]);
 
+        if ($pinConfirmedBy !== null) {
+            $this->confirmPinnedKey($partner, $pinConfirmedBy);
+        }
+
         return $partner->refresh();
+    }
+
+    /**
+     * The FP-12 confirmation: move the pin to the partner's current
+     * signing key and log the re-pin. Only the explicit administrator
+     * refresh reaches this — an attacker who can alter the well-known
+     * document must never be able to move the pin through the verifier's
+     * automatic refetch.
+     */
+    private function confirmPinnedKey(FederationPartner $partner, User $confirmedBy): void
+    {
+        $currentKeyId = $partner->currentSigningKeyId();
+
+        if ($partner->pinned_key_id === null || $currentKeyId === null || $currentKeyId === $partner->pinned_key_id) {
+            return;
+        }
+
+        $previousKeyId = $partner->pinned_key_id;
+        $partner->update(['pinned_key_id' => $currentKeyId]);
+
+        activity('federation')
+            ->causedBy($confirmedBy)
+            ->performedOn($partner)
+            ->withProperties(['domain' => $partner->domain, 'previous_key_id' => $previousKeyId, 'pinned_key_id' => $currentKeyId])
+            ->event('partner_key_repinned')
+            ->log("Pinned key for {$partner->domain} moved to {$currentKeyId} after administrator confirmation");
     }
 
     /**

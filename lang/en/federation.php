@@ -14,6 +14,7 @@ return [
     'partner_approved' => ':domain approved.',
     'partner_blocked' => ':domain blocked.',
     'keys_refreshed' => 'Keys refreshed for :domain.',
+    'key_repinned' => 'Keys refreshed for :domain — pin moved to the current signing key :key_id.',
     'sync_failed' => 'Sync failed for :domain — see the logs.',
     'sync_completed' => ':domain synced: :created new, :updated updated, :tombstoned removed.',
 

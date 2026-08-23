@@ -3,6 +3,8 @@
 use App\Enums\TrustLevel;
 use App\Models\FederationPartner;
 use App\Models\SaleYacht;
+use App\Models\User;
+use App\Services\Federation\PartnerService;
 use Illuminate\Support\Facades\Http;
 use Spatie\Activitylog\Models\Activity;
 
@@ -141,6 +143,53 @@ test('a pinned partner may only present the pinned key', function () {
     senderGet($this, '/openyacht/v1/listings')
         ->assertUnauthorized()
         ->assertJsonPath('error.code', 'SIGNATURE_INVALID');
+})->group('FP-12');
+
+test('a pinned partner that rotates is accepted again after the administrator confirms by refreshing keys', function () {
+    $pinnedKeypair = federationTestKeypair();
+
+    $partner = FederationPartner::factory()->verified()->create([
+        'domain' => SENDER,
+        'node_uuid' => '018f0000-0000-7000-8000-000000000001',
+        'keys_json' => senderWellKnown($pinnedKeypair)['keys'],
+        'pinned_key_id' => $pinnedKeypair['key_id'],
+    ]);
+
+    // Routine rotation with overlap: the new signing key is served
+    // first, the pinned old key stays published for the overlap window.
+    Http::fake([
+        SENDER.'/.well-known/openyacht' => Http::response([
+            'openyacht' => '1.0',
+            'node' => ['uuid' => '018f0000-0000-7000-8000-000000000001', 'name' => 'Sender'],
+            'keys' => [
+                [
+                    'key_id' => $this->keypair['key_id'],
+                    'algorithm' => 'ed25519',
+                    'public_key' => $this->keypair['public_key'],
+                    'created_at' => '2026-08-23T10:30:00Z',
+                ],
+                [
+                    'key_id' => $pinnedKeypair['key_id'],
+                    'algorithm' => 'ed25519',
+                    'public_key' => $pinnedKeypair['public_key'],
+                    'created_at' => '2026-08-20T10:30:00Z',
+                ],
+            ],
+        ]),
+    ]);
+
+    SaleYacht::factory()->active()->create();
+
+    // Rejected while the pin still points at the old key (FP-12)…
+    senderGet($this, '/openyacht/v1/listings')
+        ->assertUnauthorized()
+        ->assertJsonPath('error.code', 'SIGNATURE_INVALID');
+
+    // …until the explicit admin key refresh performs the confirmation
+    // and moves the pin to the rotated key.
+    app(PartnerService::class)->refreshKeys($partner, pinConfirmedBy: User::factory()->create());
+
+    senderGet($this, '/openyacht/v1/listings')->assertOk();
 })->group('FP-12');
 
 test('timestamps outside the window are rejected as out of range', function () {

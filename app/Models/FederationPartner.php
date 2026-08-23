@@ -93,6 +93,30 @@ class FederationPartner extends Model
     }
 
     /**
+     * The key id the partner currently signs with. The ecosystem
+     * convention lists the current key first in the well-known document;
+     * a strictly newer created_at elsewhere in the list wins as a
+     * fallback for nodes that order differently.
+     *
+     * // federation-protocol.md §Key Rotation
+     */
+    public function currentSigningKeyId(): ?string
+    {
+        $keys = collect($this->keys_json ?? []);
+
+        if ($keys->isEmpty()) {
+            return null;
+        }
+
+        $conventional = $keys->first();
+        $newest = $keys->sortByDesc(fn (array $key): string => (string) ($key['created_at'] ?? ''))->first();
+
+        return (string) ($newest['created_at'] ?? '') > (string) ($conventional['created_at'] ?? '')
+            ? ($newest['key_id'] ?? null)
+            : ($conventional['key_id'] ?? null);
+    }
+
+    /**
      * The field groups granted to this partner (LS-14). A null column
      * means every group is granted; an explicit array restricts to those
      * groups.

@@ -63,7 +63,9 @@ class VerifyFederationSignature
 
         // A pinned key is the only acceptable key until an administrator
         // confirms otherwise, even if the well-known document serves more
-        // (FP-12).
+        // (FP-12). The confirmation is the explicit admin key-refresh
+        // action (PartnerService::refreshKeys with a confirming user);
+        // the automatic refetch below never moves the pin.
         if ($partner->pinned_key_id !== null && $keyId !== $partner->pinned_key_id) {
             return $this->reject($request, $senderDomain, FederationErrorCode::SignatureInvalid, 'The presented key is not the pinned key for this partner.');
         }

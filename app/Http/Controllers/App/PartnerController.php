@@ -115,19 +115,23 @@ class PartnerController extends Controller
         return back();
     }
 
-    public function refreshKeys(FederationPartner $partner, PartnerService $partners): RedirectResponse
+    public function refreshKeys(Request $request, FederationPartner $partner, PartnerService $partners): RedirectResponse
     {
         Gate::authorize(Permission::ManageFederation->value);
 
+        $previousPinnedKeyId = $partner->pinned_key_id;
+
         try {
-            $partners->refreshKeys($partner);
+            $partner = $partners->refreshKeys($partner, pinConfirmedBy: $request->user());
         } catch (InvalidWellKnownDocument $exception) {
             throw ValidationException::withMessages(['partner' => $exception->getMessage()]);
         }
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => __('federation.keys_refreshed', ['domain' => $partner->domain]),
+            'message' => $partner->pinned_key_id !== $previousPinnedKeyId
+                ? __('federation.key_repinned', ['domain' => $partner->domain, 'key_id' => $partner->pinned_key_id])
+                : __('federation.keys_refreshed', ['domain' => $partner->domain]),
         ]);
 
         return back();
