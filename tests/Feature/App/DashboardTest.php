@@ -27,6 +27,10 @@ function dashboardProps(object $test, User $user): array
         ->original->getData()['page']['props'];
 }
 
+test('guests are redirected to the login page', function () {
+    $this->get(route('dashboard'))->assertRedirect(route('login'));
+});
+
 test('a super admin dashboard counts both listing types, partner copies, and partner health', function () {
     SaleYacht::factory()->active()->count(2)->create();
     SaleYacht::factory()->create();
