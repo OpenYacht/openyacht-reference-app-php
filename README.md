@@ -98,6 +98,12 @@ autorestart=true
 * * * * * cd /home/deployer/openyacht-test/current && php8.4 artisan schedule:run >> /dev/null 2>&1
 ```
 
+**Before every deploy** — the same three gates, every time; deploys pull from the repository, so anything unpushed or unchecked simply is not what ships:
+
+1. `composer preflight` — the fixers (Pint, ESLint, Prettier) followed by the exact checks CI runs (format, frontend types, PHPStan, the full test suite). Running individual tools on the files you touched is not enough: format and static-analysis drift accumulates precisely on the files you *didn't* touch, and CI checks everything.
+2. Push, and wait for **both** CI jobs — `ci` and `tests-mysql` — to go green. The MySQL job is the cross-database gate; SQLite passing locally proves nothing about engine divergence.
+3. Deploy the commit CI approved, not a newer local one.
+
 Then, from a checkout: `DEPLOY_HOST=your.domain vendor/bin/dep deploy test`. The first run stops at the missing shared `.env` — create it (`APP_KEY` via `php artisan key:generate --show`, database credentials, the `OPENYACHT_*` identity variables, Brevo mail), deploy again, and inside `current/` run `php artisan db:seed --class=RoleSeeder --force`, `php artisan openyacht:install`, and `php artisan openyacht:create-user` once (deploys migrate but never seed — the role matrix comes from the seeder). Every later deploy is the single `dep deploy` command: it builds assets on the server, migrates, restarts the queue worker, and swaps the `current` symlink atomically.
 
 ## Tests are the conformance story

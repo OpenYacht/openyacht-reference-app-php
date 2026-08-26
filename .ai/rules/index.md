@@ -7,6 +7,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/**/*.php | .ai/rules/app.md |
 | app/Http/Controllers/App/** | .ai/rules/controllers-app.md |
 | app/Http/Controllers/Federation/** | .ai/rules/federation.md |
+| **/* | .ai/rules/general.md |
 | database/migrations/** | .ai/rules/migrations.md |
 | app/Models/*.php | .ai/rules/models.md |
 | app/Services/Federation/** | .ai/rules/services-federation.md |
