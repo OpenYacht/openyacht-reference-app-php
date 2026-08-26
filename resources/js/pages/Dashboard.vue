@@ -3,7 +3,10 @@ import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { toUrl } from '@/lib/utils';
 import { dashboard } from '@/routes';
-import { edit as editCharterYacht, index as charterYachtsIndex } from '@/routes/charter-yachts';
+import {
+    edit as editCharterYacht,
+    index as charterYachtsIndex,
+} from '@/routes/charter-yachts';
 import { index as importedYachtsIndex } from '@/routes/imported-yachts';
 import { index as partnersIndex } from '@/routes/partners';
 import { index as syncedListingsIndex } from '@/routes/synced-listings';
@@ -138,7 +141,10 @@ const statusColor = (status: string) =>
     <Head title="Dashboard" />
 
     <div class="mx-auto w-full max-w-5xl space-y-6 px-4 py-6">
-        <div v-if="stats.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div
+            v-if="stats.length"
+            class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        >
             <Link
                 v-for="stat in stats"
                 :key="stat.label"
@@ -170,7 +176,10 @@ const statusColor = (status: string) =>
                 <h3 class="font-semibold">Recently updated listings</h3>
             </template>
             <ul class="divide-y divide-default">
-                <li v-for="listing in recentListings" :key="`${listing.type}-${listing.id}`">
+                <li
+                    v-for="listing in recentListings"
+                    :key="`${listing.type}-${listing.id}`"
+                >
                     <Link
                         :href="listingHref(listing)"
                         class="flex items-center gap-3 py-2.5 transition-colors first:pt-0 last:pb-0 hover:bg-elevated/40"
@@ -198,14 +207,19 @@ const statusColor = (status: string) =>
                             <p class="truncate text-sm font-medium">
                                 {{ listing.name }}
                             </p>
-                            <p v-if="listing.updated_at" class="text-xs text-muted">
+                            <p
+                                v-if="listing.updated_at"
+                                class="text-xs text-muted"
+                            >
                                 updated {{ listing.updated_at }}
                             </p>
                         </div>
                         <UBadge
                             color="neutral"
                             variant="outline"
-                            :label="listing.type === 'charter' ? 'Charter' : 'Sale'"
+                            :label="
+                                listing.type === 'charter' ? 'Charter' : 'Sale'
+                            "
                         />
                         <UBadge
                             :color="statusColor(listing.status)"
@@ -232,9 +246,13 @@ const statusColor = (status: string) =>
                 />
                 <p class="text-muted">
                     {{ partnerListings.tombstoned }} synced
-                    {{ partnerListings.tombstoned === 1 ? 'copy has' : 'copies have' }}
-                    been tombstoned by their authority — kept for the record,
-                    no longer displayable.
+                    {{
+                        partnerListings.tombstoned === 1
+                            ? 'copy has'
+                            : 'copies have'
+                    }}
+                    been tombstoned by their authority — kept for the record, no
+                    longer displayable.
                 </p>
                 <ULink
                     :href="toUrl(importedYachtsIndex())"

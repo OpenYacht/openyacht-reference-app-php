@@ -57,7 +57,9 @@ export function formatRateRange(
     const high = Math.max(...(maxs.length > 0 ? maxs : mins));
     const suffix = rateType === 'daily' ? '/ day' : '/ week';
     const range =
-        high > low ? `${money(low, currency)}–${money(high, currency)}` : money(low, currency);
+        high > low
+            ? `${money(low, currency)}–${money(high, currency)}`
+            : money(low, currency);
 
     return `${range} ${suffix}`;
 }

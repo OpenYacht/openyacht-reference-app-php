@@ -113,7 +113,9 @@ const validity = (rate: Rate): string | null =>
                             {{ rateAmounts(rate) }}
                             <span class="font-normal text-muted">
                                 /
-                                {{ rate.rate_type === 'daily' ? 'day' : 'week' }}
+                                {{
+                                    rate.rate_type === 'daily' ? 'day' : 'week'
+                                }}
                             </span>
                         </td>
                         <td class="p-3">{{ rate.contract_terms ?? '—' }}</td>

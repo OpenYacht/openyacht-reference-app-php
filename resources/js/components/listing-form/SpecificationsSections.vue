@@ -5,10 +5,7 @@
  */
 import { computed, ref } from 'vue';
 import type { ListingForm } from '@/components/listing-form/types';
-import {
-    emptyEngine,
-    emptyGenerator,
-} from '@/components/listing-form/types';
+import { emptyEngine, emptyGenerator } from '@/components/listing-form/types';
 
 const props = defineProps<{
     form: ListingForm;

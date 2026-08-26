@@ -30,6 +30,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon $received_at
  * @property bool $signature_verified
  * @property Carbon|null $tombstoned_at
+ * @property array<int, array{with: string, matched_on: string, label: string, uuid: string|null}>|null $identity_conflicts
+ * @property Carbon|null $conflict_reviewed_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */

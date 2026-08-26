@@ -20,6 +20,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * its own setting and its groups'.
  *
  * // wordpress-plugin-notes.md §Granular sharing
+ *
+ * @property int $id
+ * @property string $name
+ * @property AcceptancePolicy|null $acceptance_policy
  */
 class PartnerGroup extends Model
 {
@@ -50,7 +54,7 @@ class PartnerGroup extends Model
      * The canonical UUIDs of listings whose selected audience includes
      * this group.
      *
-     * @return list<string>
+     * @return array<int, string>
      */
     public function listingUuidsSelecting(): array
     {
@@ -59,6 +63,8 @@ class PartnerGroup extends Model
             ->table('listing_audience_groups')
             ->where('partner_group_id', $this->id)
             ->pluck('listing_uuid')
+            ->map(fn ($uuid): string => (string) $uuid)
+            ->values()
             ->all();
     }
 }

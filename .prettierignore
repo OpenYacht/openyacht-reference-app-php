@@ -2,3 +2,6 @@ resources/js/components/ui/*
 resources/views/mail/*
 auto-imports.d.ts
 components.d.ts
+# Vendored verbatim from the protocol repo — must stay byte-identical
+# to the published registry files, never reformatted.
+resources/registry/*.json

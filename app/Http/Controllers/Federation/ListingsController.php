@@ -64,54 +64,12 @@ class ListingsController extends Controller
 
         $cursor = ListingCursor::decode($request->query('cursor'));
 
-        $fetch = function (Builder $query) use ($partner, $updatedSince, $cursor, $pageSize): Collection {
-            $table = $query->getModel()->getTable();
-            $visible = $this->visibleSql($table);
-            $effective = $this->effectiveSql($table);
+        /** @var Collection<int, SaleYacht|CharterYacht> $combined */
+        $combined = $this
+            ->feedPage(SaleYacht::query()->with(['vessel', 'assignedBroker', 'priceHistory', 'media']), 'sale_yachts', $partner, $updatedSince, $cursor, $pageSize)
+            ->concat($this->feedPage(CharterYacht::query()->with(['vessel', 'assignedBroker', 'media']), 'charter_yachts', $partner, $updatedSince, $cursor, $pageSize));
 
-            $query
-                ->select("{$table}.*")
-                ->selectRaw("{$visible} as visible_now", [$partner->id, $partner->id])
-                ->selectRaw("{$effective} as effective_updated_at")
-                ->selectRaw('ev.event as last_event')
-                ->leftJoinSub($this->latestEventPerListing($partner), 'ev', 'ev.listing_uuid', '=', "{$table}.uuid")
-                ->where("{$table}.status", '!=', ListingStatus::Draft)
-                ->orderByRaw("{$effective}")
-                ->orderBy("{$table}.uuid");
-
-            if ($updatedSince !== null) {
-                // Everything whose federation-visible state changed at or
-                // after the timestamp for THIS partner — content changes,
-                // grant refreshes, and listings that became invisible,
-                // which appear below as tombstones (API-3). The
-                // invisible branch keys on the hidden event specifically:
-                // refreshed rows serialise as normal listings.
-                $since = $updatedSince->utc()->format('Y-m-d H:i:s');
-                $query->whereRaw(
-                    "(({$visible} AND {$effective} >= ?) OR (NOT {$visible} AND ev.event = 'hidden' AND ev.occurred_at >= ?))",
-                    [$partner->id, $partner->id, $since, $partner->id, $partner->id, $since],
-                );
-            } else {
-                // Cold sync: the currently visible inventory only; terminal
-                // listings remain dereferenceable at their canonical URIs.
-                $query
-                    ->whereRaw($visible, [$partner->id, $partner->id])
-                    ->whereIn("{$table}.status", [ListingStatus::Active, ListingStatus::UnderOffer]);
-            }
-
-            if ($cursor !== null) {
-                $position = $cursor['updated_at']->utc()->format('Y-m-d H:i:s');
-                $query->whereRaw(
-                    "({$effective} > ? OR ({$effective} = ? AND {$table}.uuid > ?))",
-                    [$position, $position, $cursor['uuid']],
-                );
-            }
-
-            return $query->limit($pageSize + 1)->get();
-        };
-
-        $merged = $fetch(SaleYacht::query()->with(['vessel', 'assignedBroker', 'priceHistory', 'media']))
-            ->concat($fetch(CharterYacht::query()->with(['vessel', 'assignedBroker', 'media'])))
+        $merged = $combined
             ->sortBy(fn (SaleYacht|CharterYacht $yacht): string => $yacht->effective_updated_at.'|'.$yacht->uuid)
             ->values();
 
@@ -193,6 +151,67 @@ class ListingsController extends Controller
     }
 
     /**
+     * One typed table's page of the feed: the same constraints run
+     * against sale_yachts and charter_yachts, and the two result sets
+     * merge on (effective_updated_at, uuid). The table name is a
+     * caller-supplied literal so the composed fragments stay
+     * injection-checkable literal strings.
+     *
+     * @param  Builder<SaleYacht>|Builder<CharterYacht>  $query
+     * @param  literal-string  $table
+     * @param  array{updated_at: Carbon, uuid: string}|null  $cursor
+     * @return Collection<int, SaleYacht|CharterYacht>
+     */
+    private function feedPage(Builder $query, string $table, FederationPartner $partner, ?Carbon $updatedSince, ?array $cursor, int $pageSize): Collection
+    {
+        $visible = $this->visibleSql($table);
+        $effective = $this->effectiveSql($table);
+
+        $query
+            ->select("{$table}.*")
+            ->selectRaw("{$visible} as visible_now", [$partner->id, $partner->id])
+            ->selectRaw("{$effective} as effective_updated_at")
+            ->selectRaw('ev.event as last_event')
+            ->leftJoinSub($this->latestEventPerListing($partner), 'ev', 'ev.listing_uuid', '=', "{$table}.uuid")
+            ->where("{$table}.status", '!=', ListingStatus::Draft)
+            ->orderByRaw("{$effective}")
+            ->orderBy("{$table}.uuid");
+
+        if ($updatedSince !== null) {
+            // Everything whose federation-visible state changed at or
+            // after the timestamp for THIS partner — content changes,
+            // grant refreshes, and listings that became invisible, which
+            // appear as tombstones (API-3). The invisible branch keys on
+            // the hidden event specifically: refreshed rows serialise as
+            // normal listings.
+            $since = $updatedSince->utc()->format('Y-m-d H:i:s');
+            $query->whereRaw(
+                "(({$visible} AND {$effective} >= ?) OR (NOT {$visible} AND ev.event = 'hidden' AND ev.occurred_at >= ?))",
+                [$partner->id, $partner->id, $since, $partner->id, $partner->id, $since],
+            );
+        } else {
+            // Cold sync: the currently visible inventory only; terminal
+            // listings remain dereferenceable at their canonical URIs.
+            $query
+                ->whereRaw($visible, [$partner->id, $partner->id])
+                ->whereIn("{$table}.status", [ListingStatus::Active, ListingStatus::UnderOffer]);
+        }
+
+        if ($cursor !== null) {
+            $position = $cursor['updated_at']->utc()->format('Y-m-d H:i:s');
+            $query->whereRaw(
+                "({$effective} > ? OR ({$effective} = ? AND {$table}.uuid > ?))",
+                [$position, $position, $cursor['uuid']],
+            );
+        }
+
+        /** @var Collection<int, SaleYacht|CharterYacht> $rows */
+        $rows = $query->limit($pageSize + 1)->get();
+
+        return $rows;
+    }
+
+    /**
      * The requesting partner's latest visibility event per listing, as a
      * joinable derived table (listing_uuid, event, occurred_at).
      */
@@ -213,6 +232,9 @@ class ListingsController extends Controller
      * audience is the union of individually selected partners and members
      * of selected groups. Two positional bindings (partner id, twice).
      * The two implementations must stay mirrored.
+     *
+     * @param  literal-string  $table
+     * @return literal-string
      */
     private function visibleSql(string $table): string
     {
@@ -227,6 +249,9 @@ class ListingsController extends Controller
      * GREATEST(federation_updated_at, latest event) as a portable CASE —
      * GREATEST() does not exist on SQLite. Timestamps compare as
      * 'Y-m-d H:i:s' strings, which orders correctly on every engine.
+     *
+     * @param  literal-string  $table
+     * @return literal-string
      */
     private function effectiveSql(string $table): string
     {

@@ -23,10 +23,9 @@ const rateTypes = [
         <p class="text-sm font-medium">Charter rates</p>
         <p class="text-xs text-muted">
             A fixed single rate uses the same minimum and maximum. Money is
-            digit strings; a season is <code>summer</code>,
-            <code>winter</code>, or a free label for special periods. Rates
-            travel under the pricing field group — partners without it
-            receive an empty list.
+            digit strings; a season is <code>summer</code>, <code>winter</code>,
+            or a free label for special periods. Rates travel under the pricing
+            field group — partners without it receive an empty list.
         </p>
         <div
             v-for="(rate, i) in form.rates"

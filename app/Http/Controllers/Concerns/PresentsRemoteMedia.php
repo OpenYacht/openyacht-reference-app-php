@@ -21,30 +21,46 @@ trait PresentsRemoteMedia
      * a withheld documents group arrives as [] already (LS-14).
      *
      * @param  array<string, mixed>  $payload
-     * @return array<string, list<array<string, mixed>>>
+     * @return array{
+     *     layouts: array<int, array{url: string, thumbnail_url: string|null, caption: string|null}>,
+     *     videos: array<int, array{url: string, caption: string|null}>,
+     *     tours: array<int, array{url: string, caption: string|null}>,
+     *     documents: array<int, array{url: string, caption: string|null}>,
+     * }
      */
     protected function remoteMediaProps(array $payload): array
     {
-        $linkList = fn (mixed $items): array => collect(is_array($items) ? $items : [])
-            ->map(fn ($item): ?array => is_array($item) && $this->httpsUrlOrNull($item['url'] ?? null) !== null
-                ? [
-                    'url' => $item['url'],
+        $items = function (mixed $items): array {
+            /** @var array<int, mixed> $list */
+            $list = is_array($items) ? $items : [];
+
+            return $list;
+        };
+
+        $linkList = fn (mixed $list): array => collect($items($list))
+            ->map(function ($item): ?array {
+                $url = is_array($item) ? $this->httpsUrlOrNull($item['url'] ?? null) : null;
+
+                return $url === null ? null : [
+                    'url' => $url,
                     'caption' => is_string($item['caption'] ?? null) ? $item['caption'] : null,
-                ]
-                : null)
+                ];
+            })
             ->filter()
             ->values()
             ->all();
 
         return [
-            'layouts' => collect(data_get($payload, 'media.layouts', []))
-                ->map(fn ($item): ?array => is_array($item) && $this->httpsUrlOrNull($item['url'] ?? null) !== null
-                    ? [
-                        'url' => $item['url'],
+            'layouts' => collect($items(data_get($payload, 'media.layouts')))
+                ->map(function ($item): ?array {
+                    $url = is_array($item) ? $this->httpsUrlOrNull($item['url'] ?? null) : null;
+
+                    return $url === null ? null : [
+                        'url' => $url,
                         'thumbnail_url' => $this->httpsUrlOrNull($item['thumbnail_url'] ?? null),
                         'caption' => is_string($item['caption'] ?? null) ? $item['caption'] : null,
-                    ]
-                    : null)
+                    ];
+                })
                 ->filter()
                 ->values()
                 ->all(),

@@ -56,6 +56,12 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property CarbonInterface|null $federation_updated_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ *
+ * Feed-aliased virtual columns (ListingsController — the per-partner
+ * effective timestamp join); present only on rows fetched by the feed.
+ * @property-read string|null $effective_updated_at
+ * @property-read int|bool|null $visible_now
+ * @property-read string|null $last_event
  */
 #[Fillable([
     'vessel_id', 'assigned_broker_id', 'status', 'name', 'summary',

@@ -14,8 +14,8 @@ export type ListingBadge = {
  * slot for page-specific lines (price, provenance, actions), and optional
  * attribution. One component keeps the three pages from drifting apart.
  */
-import { Link  } from '@inertiajs/vue3';
-import type {InertiaLinkProps} from '@inertiajs/vue3';
+import { Link } from '@inertiajs/vue3';
+import type { InertiaLinkProps } from '@inertiajs/vue3';
 
 defineProps<{
     title: string;
@@ -58,7 +58,9 @@ defineProps<{
             >
                 <UIcon
                     :name="
-                        pending ? 'i-lucide-loader-circle' : 'i-lucide-image-off'
+                        pending
+                            ? 'i-lucide-loader-circle'
+                            : 'i-lucide-image-off'
                     "
                     class="size-8 text-muted"
                     :class="{ 'animate-spin': pending }"

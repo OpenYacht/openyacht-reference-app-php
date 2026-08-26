@@ -30,6 +30,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $pinned_key_id
  * @property TrustLevel $trust_level
  * @property array<int, string>|null $field_groups
+ * @property AcceptancePolicy $acceptance_policy
  * @property int|null $approved_by_user_id
  * @property Carbon|null $last_ok_at
  * @property int $consecutive_failures

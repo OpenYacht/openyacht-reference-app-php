@@ -304,7 +304,7 @@ trait ManagesOwnListings
      * Normalise a videos/tours input to stored {url, caption} entries,
      * dropping blank rows.
      *
-     * @return list<array{url: string, caption: string|null}>|null
+     * @return array<int, array{url: string, caption: string|null}>|null
      */
     protected function mediaLinkAttributes(FormRequest $request, string $key): ?array
     {

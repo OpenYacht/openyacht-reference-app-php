@@ -21,7 +21,8 @@ const triState = [
             <UFormField label="Not for sale to US residents in US waters">
                 <USelect
                     v-model="
-                        form.compliance.not_for_sale_to_us_residents_in_us_waters
+                        form.compliance
+                            .not_for_sale_to_us_residents_in_us_waters
                     "
                     :items="triState"
                     value-key="value"

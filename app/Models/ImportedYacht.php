@@ -32,6 +32,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $summary
  * @property string|null $attribution_text
  * @property Carbon|null $media_synced_at
+ * @property Carbon|null $auto_published_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */

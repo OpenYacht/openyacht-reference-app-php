@@ -245,7 +245,7 @@ class SharingService
     /**
      * Resolve canonical UUIDs to listings across both typed tables.
      *
-     * @param  list<string>  $uuids
+     * @param  array<int, string>  $uuids
      * @return Collection<int, SaleYacht|CharterYacht>
      */
     private function findByUuids(array $uuids)

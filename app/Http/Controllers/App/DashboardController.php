@@ -116,8 +116,10 @@ class DashboardController extends Controller
             ->limit(6)
             ->get();
 
-        return $recent(SaleYacht::query())
-            ->concat($recent(CharterYacht::query()))
+        /** @var Collection<int, SaleYacht|CharterYacht> $combined */
+        $combined = $recent(SaleYacht::query())->concat($recent(CharterYacht::query()));
+
+        return $combined
             ->sortByDesc('federation_updated_at')
             ->take(6)
             ->values()

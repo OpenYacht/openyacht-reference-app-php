@@ -16,8 +16,8 @@ defineProps<{ form: ListingForm<CharterYachtFormFields> }>();
     <div class="space-y-3 rounded-lg border border-default p-4">
         <p class="text-sm font-medium">Crew</p>
         <p class="text-xs text-muted">
-            A TBA position is unannounced — the role stands, the personal
-            fields stay empty.
+            A TBA position is unannounced — the role stands, the personal fields
+            stay empty.
         </p>
         <div
             v-for="(member, i) in form.crew"
@@ -25,10 +25,7 @@ defineProps<{ form: ListingForm<CharterYachtFormFields> }>();
             class="space-y-2 rounded-md bg-elevated/50 p-3"
         >
             <div class="grid gap-3 sm:grid-cols-4">
-                <UFormField
-                    label="Role"
-                    :error="form.errors[`crew.${i}.role`]"
-                >
+                <UFormField label="Role" :error="form.errors[`crew.${i}.role`]">
                     <UInput
                         v-model="member.role"
                         class="w-full"
