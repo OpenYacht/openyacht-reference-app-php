@@ -254,10 +254,54 @@ class ListingSerializer
                         : null,
                 ])
                 ->all(),
-            'layouts' => [],
-            'videos' => [],
-            'tours' => [],
-            'documents' => $documentsGranted ? [] : [],
+            // GA/deck plans as images, same shape as gallery minus the
+            // category, thumbnails included (LS-16).
+            'layouts' => $yacht->getMedia('layouts')
+                ->values()
+                ->map(fn (Media $media, int $index): array => [
+                    'url' => $media->getFullUrl(),
+                    'sha256' => $media->getCustomProperty('sha256'),
+                    'width' => $media->getCustomProperty('width'),
+                    'height' => $media->getCustomProperty('height'),
+                    'caption' => $media->getCustomProperty('caption'),
+                    'sort' => $index + 1,
+                    'thumbnail_url' => $media->hasGeneratedConversion('thumbnail')
+                        ? $media->getFullUrl('thumbnail')
+                        : null,
+                ])
+                ->all(),
+            // External platforms — sha256 is null for URLs this node does
+            // not host (listing-schema.md §Media).
+            'videos' => collect($yacht->videos ?? [])
+                ->values()
+                ->map(fn (array $video, int $index): array => [
+                    'url' => $video['url'],
+                    'sha256' => null,
+                    'caption' => $video['caption'] ?? null,
+                    'sort' => $index + 1,
+                ])
+                ->all(),
+            'tours' => collect($yacht->tours ?? [])
+                ->values()
+                ->map(fn (array $tour, int $index): array => [
+                    'url' => $tour['url'],
+                    'caption' => $tour['caption'] ?? null,
+                    'sort' => $index + 1,
+                ])
+                ->all(),
+            // Withheld documents serve as [] — a URL you may not use is
+            // worse than no entry (LS-14).
+            'documents' => $documentsGranted
+                ? $yacht->getMedia('documents')
+                    ->values()
+                    ->map(fn (Media $media, int $index): array => [
+                        'url' => $media->getFullUrl(),
+                        'sha256' => $media->getCustomProperty('sha256'),
+                        'caption' => $media->getCustomProperty('caption'),
+                        'sort' => $index + 1,
+                    ])
+                    ->all()
+                : [],
         ];
     }
 

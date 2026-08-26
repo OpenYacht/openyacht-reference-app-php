@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
 import {
     emptyEngine,
     emptyGenerator,
@@ -8,6 +7,8 @@ import {
     normalizeCompliance,
 } from '@/components/listing-form/types';
 import type { SpecificationsForm } from '@/components/listing-form/types';
+import ListingMediaManager from '@/components/ListingMediaManager.vue';
+import type { MediaItem } from '@/components/ListingMediaManager.vue';
 import ListingSharingCard from '@/components/ListingSharingCard.vue';
 import YachtForm from '@/components/YachtForm.vue';
 import { edit, index, transition, update } from '@/routes/yachts';
@@ -17,12 +18,6 @@ import {
     store as storeMedia,
     update as updateMedia,
 } from '@/routes/yachts/media';
-
-type MediaItem = {
-    id: number;
-    url: string;
-    caption: string | null;
-};
 
 type Yacht = {
     id: number;
@@ -61,8 +56,12 @@ type Yacht = {
     descriptions: { section: string | null; content: string }[];
     features: { category: string | null; name: string; slug: string | null }[];
     compliance: Record<string, unknown>;
+    videos: { url: string; caption: string | null }[];
+    tours: { url: string; caption: string | null }[];
     profile: MediaItem | null;
     gallery: MediaItem[];
+    layouts: MediaItem[];
+    documents: MediaItem[];
 };
 
 const triState = (value: unknown): string =>
@@ -171,6 +170,14 @@ const form = useForm({
         name: feature.name,
         slug: feature.slug ?? '',
     })),
+    videos: props.yacht.videos.map((video) => ({
+        url: video.url,
+        caption: video.caption ?? '',
+    })),
+    tours: props.yacht.tours.map((tour) => ({
+        url: tour.url,
+        caption: tour.caption ?? '',
+    })),
     compliance: {
         not_for_sale_to_us_residents_in_us_waters: triState(
             props.yacht.compliance.not_for_sale_to_us_residents_in_us_waters,
@@ -208,53 +215,11 @@ const changeStatus = (status: string) => {
     );
 };
 
-const profileInput = ref<HTMLInputElement>();
-const galleryInput = ref<HTMLInputElement>();
-
-const upload = (
-    collection: 'profile' | 'gallery',
-    input?: HTMLInputElement,
-) => {
-    const file = input?.files?.[0];
-
-    if (!file) {
-        return;
-    }
-
-    router.post(
-        storeMedia.url({ yacht: props.yacht.id }),
-        { collection, file },
-        {
-            preserveScroll: true,
-            forceFormData: true,
-            onFinish: () => {
-                if (input) {
-                    input.value = '';
-                }
-            },
-        },
-    );
-};
-
-const removeMedia = (media: MediaItem) => {
-    router.delete(
-        destroyMedia.url({ yacht: props.yacht.id, media: media.id }),
-        { preserveScroll: true },
-    );
-};
-
-// Caption doubles as the image's alt text on the wire.
-const saveCaption = (media: MediaItem, caption: string) => {
-    if ((media.caption ?? '') === caption) {
-        return;
-    }
-
-    router.patch(
-        updateMedia.url({ yacht: props.yacht.id, media: media.id }),
-        { caption },
-        { preserveScroll: true },
-    );
-};
+const mediaStoreUrl = storeMedia.url({ yacht: props.yacht.id });
+const mediaUpdateUrl = (mediaId: number) =>
+    updateMedia.url({ yacht: props.yacht.id, media: mediaId });
+const mediaDestroyUrl = (mediaId: number) =>
+    destroyMedia.url({ yacht: props.yacht.id, media: mediaId });
 
 const statusColor = (status: string) =>
     ({
@@ -302,128 +267,15 @@ const statusColor = (status: string) =>
             </div>
         </div>
 
-        <section class="space-y-3">
-            <p class="text-sm font-medium">Media</p>
-            <div class="grid gap-4 sm:grid-cols-2">
-                <div class="space-y-2">
-                    <p class="text-xs text-muted">
-                        Profile — the explicit hero image partners must use
-                    </p>
-                    <div
-                        class="relative aspect-video overflow-hidden rounded-lg border border-default bg-elevated"
-                    >
-                        <img
-                            v-if="yacht.profile"
-                            :src="yacht.profile.url"
-                            :alt="yacht.name"
-                            class="h-full w-full object-cover"
-                        />
-                        <div
-                            v-else
-                            class="flex h-full items-center justify-center text-sm text-muted"
-                        >
-                            No profile image
-                        </div>
-                    </div>
-                    <UInput
-                        v-if="yacht.profile"
-                        :model-value="yacht.profile.caption ?? ''"
-                        placeholder="Caption / alt text"
-                        size="sm"
-                        class="w-full"
-                        @blur="
-                            saveCaption(
-                                yacht.profile!,
-                                ($event.target as HTMLInputElement).value,
-                            )
-                        "
-                    />
-                    <input
-                        ref="profileInput"
-                        type="file"
-                        accept="image/*"
-                        class="hidden"
-                        @change="upload('profile', profileInput)"
-                    />
-                    <UButton
-                        color="neutral"
-                        variant="outline"
-                        size="sm"
-                        icon="i-lucide-upload"
-                        :label="
-                            yacht.profile ? 'Replace profile' : 'Upload profile'
-                        "
-                        @click="profileInput?.click()"
-                    />
-                </div>
-
-                <div class="space-y-2">
-                    <p class="text-xs text-muted">Gallery</p>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div
-                            v-for="media in yacht.gallery"
-                            :key="media.id"
-                            class="space-y-1"
-                        >
-                            <div
-                                class="group relative aspect-[4/3] overflow-hidden rounded-md border border-default"
-                            >
-                                <img
-                                    :src="media.url"
-                                    :alt="media.caption ?? yacht.name"
-                                    class="h-full w-full object-cover"
-                                />
-                                <UButton
-                                    color="error"
-                                    variant="solid"
-                                    size="xs"
-                                    icon="i-lucide-x"
-                                    aria-label="Remove image"
-                                    class="absolute top-1 right-1 opacity-0 transition-opacity group-hover:opacity-100"
-                                    @click="removeMedia(media)"
-                                />
-                            </div>
-                            <UInput
-                                :model-value="media.caption ?? ''"
-                                placeholder="Caption / alt text"
-                                size="xs"
-                                class="w-full"
-                                @blur="
-                                    saveCaption(
-                                        media,
-                                        ($event.target as HTMLInputElement)
-                                            .value,
-                                    )
-                                "
-                            />
-                        </div>
-                    </div>
-                    <input
-                        ref="galleryInput"
-                        type="file"
-                        accept="image/*"
-                        class="hidden"
-                        @change="upload('gallery', galleryInput)"
-                    />
-                    <UButton
-                        color="neutral"
-                        variant="outline"
-                        size="sm"
-                        icon="i-lucide-image-plus"
-                        label="Add gallery image"
-                        @click="galleryInput?.click()"
-                    />
-                </div>
-            </div>
-        </section>
-
-        <ListingSharingCard
-            :update-url="updateAudience.url(yacht.id)"
-            :audience="sharing.audience"
-            :selected-partner-ids="sharing.selected_partner_ids"
-            :selected-group-ids="sharing.selected_group_ids"
-            :partners="sharing.partners"
-            :groups="sharing.groups"
+        <ListingMediaManager
+            :yacht-name="yacht.name"
+            :profile="yacht.profile"
+            :gallery="yacht.gallery"
+            :layouts="yacht.layouts"
+            :documents="yacht.documents"
+            :store-url="mediaStoreUrl"
+            :update-url="mediaUpdateUrl"
+            :destroy-url="mediaDestroyUrl"
         />
 
         <form class="space-y-6" @submit.prevent="submit">
@@ -442,5 +294,14 @@ const statusColor = (status: string) =>
                 />
             </div>
         </form>
+
+        <ListingSharingCard
+            :update-url="updateAudience.url(yacht.id)"
+            :audience="sharing.audience"
+            :selected-partner-ids="sharing.selected_partner_ids"
+            :selected-group-ids="sharing.selected_group_ids"
+            :partners="sharing.partners"
+            :groups="sharing.groups"
+        />
     </div>
 </template>

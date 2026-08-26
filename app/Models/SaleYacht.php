@@ -49,6 +49,8 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property array<int, array{section: string|null, content: string}>|null $descriptions
  * @property array<int, array{category: string|null, name: string, slug: string|null}>|null $features
  * @property array<string, mixed>|null $compliance
+ * @property array<int, array{url: string, caption: string|null}>|null $videos
+ * @property array<int, array{url: string, caption: string|null}>|null $tours
  * @property Audience $audience
  * @property CarbonInterface|null $listed_at
  * @property CarbonInterface|null $federation_updated_at
@@ -60,7 +62,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
     'condition', 'price_amount', 'price_currency', 'price_on_application',
     'starting_price', 'location_display', 'location_city', 'location_state',
     'location_country', 'location_marina', 'location_lat', 'location_lon',
-    'specifications', 'descriptions', 'features', 'compliance', 'listed_at',
+    'specifications', 'descriptions', 'features', 'compliance', 'videos', 'tours', 'listed_at',
 ])]
 class SaleYacht extends Model implements HasMedia
 {
@@ -102,6 +104,8 @@ class SaleYacht extends Model implements HasMedia
             'descriptions' => 'array',
             'features' => 'array',
             'compliance' => 'array',
+            'videos' => 'array',
+            'tours' => 'array',
             'listed_at' => 'datetime',
             'federation_updated_at' => 'datetime',
         ];

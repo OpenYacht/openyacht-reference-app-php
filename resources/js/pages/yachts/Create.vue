@@ -53,6 +53,8 @@ const form = useForm({
     specifications: emptySpecifications(),
     descriptions: [{ section: 'overview', content: '' }],
     features: [] as { category: string; name: string; slug: string }[],
+    videos: [] as { url: string; caption: string }[],
+    tours: [] as { url: string; caption: string }[],
     compliance: {
         not_for_sale_to_us_residents_in_us_waters: 'unknown',
         vat_status: '',

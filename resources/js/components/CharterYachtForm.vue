@@ -5,6 +5,7 @@ import DescriptionsSection from '@/components/listing-form/DescriptionsSection.v
 import FeaturesSection from '@/components/listing-form/FeaturesSection.vue';
 import ListingBasicsSection from '@/components/listing-form/ListingBasicsSection.vue';
 import LocationSection from '@/components/listing-form/LocationSection.vue';
+import MediaLinksSection from '@/components/listing-form/MediaLinksSection.vue';
 import OperatingAreasSection from '@/components/listing-form/OperatingAreasSection.vue';
 import RatesSection from '@/components/listing-form/RatesSection.vue';
 import SpecificationsSections from '@/components/listing-form/SpecificationsSections.vue';
@@ -46,6 +47,8 @@ defineProps<{
         <DescriptionsSection :form="form" />
 
         <FeaturesSection :form="form" />
+
+        <MediaLinksSection :form="form" />
 
         <ComplianceSection :form="form" />
     </div>

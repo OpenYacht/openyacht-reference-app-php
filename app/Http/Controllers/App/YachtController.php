@@ -167,8 +167,16 @@ class YachtController extends Controller
                 'descriptions' => $yacht->descriptions ?? [],
                 'features' => $yacht->features ?? [],
                 'compliance' => $yacht->compliance ?? [],
+                'videos' => $yacht->videos ?? [],
+                'tours' => $yacht->tours ?? [],
                 'profile' => $this->mediaPayload($yacht->getFirstMedia('profile')),
                 'gallery' => $yacht->getMedia('gallery')
+                    ->map(fn (Media $media) => $this->mediaPayload($media))
+                    ->values(),
+                'layouts' => $yacht->getMedia('layouts')
+                    ->map(fn (Media $media) => $this->mediaPayload($media))
+                    ->values(),
+                'documents' => $yacht->getMedia('documents')
                     ->map(fn (Media $media) => $this->mediaPayload($media))
                     ->values(),
             ],

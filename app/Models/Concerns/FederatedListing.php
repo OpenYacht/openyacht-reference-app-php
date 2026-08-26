@@ -152,16 +152,23 @@ trait FederatedListing
         $this->addMediaCollection('profile')->singleFile();
 
         $this->addMediaCollection('gallery');
+
+        // GA/deck plans as images; plan PDFs belong in documents.
+        $this->addMediaCollection('layouts');
+
+        // Brochures, plan PDFs, sample menus — served only under the
+        // documents field group (LS-14).
+        $this->addMediaCollection('documents');
     }
 
     public function registerMediaConversions(?Media $media = null): void
     {
         // The authority-served thumbnails: mandatory for the profile image
-        // (LS-8), one per gallery image (nullable on the wire; LS-16 —
-        // being a conversion of the stored file, it is a rendition of the
-        // same image by construction). ~400-640px on the long edge.
+        // (LS-8), one per gallery and layout image (nullable on the wire;
+        // LS-16 — being a conversion of the stored file, it is a rendition
+        // of the same image by construction). ~400-640px on the long edge.
         $this->addMediaConversion('thumbnail')
-            ->performOnCollections('profile', 'gallery')
+            ->performOnCollections('profile', 'gallery', 'layouts')
             ->nonQueued()
             ->width(640);
     }

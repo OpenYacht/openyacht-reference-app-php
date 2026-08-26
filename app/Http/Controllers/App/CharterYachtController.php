@@ -179,8 +179,16 @@ class CharterYachtController extends Controller
                 'winter_base_port' => $charterYacht->winter_base_port,
                 'crew' => $charterYacht->crew ?? [],
                 'crew_attested' => $charterYacht->crew_attested_at !== null,
+                'videos' => $charterYacht->videos ?? [],
+                'tours' => $charterYacht->tours ?? [],
                 'profile' => $this->mediaPayload($charterYacht->getFirstMedia('profile')),
                 'gallery' => $charterYacht->getMedia('gallery')
+                    ->map(fn (Media $media) => $this->mediaPayload($media))
+                    ->values(),
+                'layouts' => $charterYacht->getMedia('layouts')
+                    ->map(fn (Media $media) => $this->mediaPayload($media))
+                    ->values(),
+                'documents' => $charterYacht->getMedia('documents')
                     ->map(fn (Media $media) => $this->mediaPayload($media))
                     ->values(),
             ],

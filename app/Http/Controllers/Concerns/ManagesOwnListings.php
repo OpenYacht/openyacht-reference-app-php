@@ -124,12 +124,17 @@ trait ManagesOwnListings
         Gate::authorize('update', $yacht);
 
         $request->validate([
-            'collection' => ['required', 'in:profile,gallery'],
-            'file' => ['required', 'file', 'image', 'max:30720'],
+            'collection' => ['required', 'in:profile,gallery,layouts,documents'],
+            // Layouts are GA/deck plans as images; plan PDFs and brochures
+            // go to documents (listing-schema.md §Media).
+            'file' => $request->input('collection') === 'documents'
+                ? ['required', 'file', 'mimes:pdf', 'max:30720']
+                : ['required', 'file', 'image', 'max:30720'],
         ]);
 
         $file = $request->file('file');
-        [$width, $height] = getimagesize($file->getRealPath()) ?: [null, null];
+        $isImage = $request->input('collection') !== 'documents';
+        [$width, $height] = $isImage ? (getimagesize($file->getRealPath()) ?: [null, null]) : [null, null];
 
         $yacht->addMedia($file)
             ->withCustomProperties([
@@ -290,7 +295,33 @@ trait ManagesOwnListings
             'descriptions' => $this->sanitizedDescriptions($request),
             'features' => $request->input('features'),
             'compliance' => $request->input('compliance'),
+            'videos' => $this->mediaLinkAttributes($request, 'videos'),
+            'tours' => $this->mediaLinkAttributes($request, 'tours'),
         ];
+    }
+
+    /**
+     * Normalise a videos/tours input to stored {url, caption} entries,
+     * dropping blank rows.
+     *
+     * @return list<array{url: string, caption: string|null}>|null
+     */
+    protected function mediaLinkAttributes(FormRequest $request, string $key): ?array
+    {
+        $links = $request->input($key);
+
+        if (! is_array($links)) {
+            return null;
+        }
+
+        return collect($links)
+            ->filter(fn ($link): bool => is_array($link) && is_string($link['url'] ?? null) && $link['url'] !== '')
+            ->map(fn (array $link): array => [
+                'url' => $link['url'],
+                'caption' => is_string($link['caption'] ?? null) && $link['caption'] !== '' ? $link['caption'] : null,
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -306,6 +337,7 @@ trait ManagesOwnListings
             'id' => $media->id,
             'url' => $media->getFullUrl(),
             'caption' => $media->getCustomProperty('caption'),
+            'file_name' => $media->file_name,
         ];
     }
 }

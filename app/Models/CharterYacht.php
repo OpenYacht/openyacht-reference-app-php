@@ -53,6 +53,8 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property string|null $winter_base_port
  * @property array<int, array<string, mixed>>|null $crew
  * @property CarbonInterface|null $crew_attested_at
+ * @property array<int, array{url: string, caption: string|null}>|null $videos
+ * @property array<int, array{url: string, caption: string|null}>|null $tours
  * @property Audience $audience
  * @property CarbonInterface|null $listed_at
  * @property CarbonInterface|null $federation_updated_at
@@ -65,7 +67,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
     'location_country', 'location_marina', 'location_lat', 'location_lon',
     'specifications', 'descriptions', 'features', 'compliance',
     'rates', 'operating_areas', 'summer_base_port', 'winter_base_port',
-    'crew', 'crew_attested_at', 'listed_at',
+    'crew', 'crew_attested_at', 'videos', 'tours', 'listed_at',
 ])]
 class CharterYacht extends Model implements HasMedia
 {
@@ -92,6 +94,8 @@ class CharterYacht extends Model implements HasMedia
             'descriptions' => 'array',
             'features' => 'array',
             'compliance' => 'array',
+            'videos' => 'array',
+            'tours' => 'array',
             'rates' => 'array',
             'operating_areas' => 'array',
             'crew' => 'array',

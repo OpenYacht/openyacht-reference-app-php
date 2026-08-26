@@ -8,8 +8,12 @@ import DescriptionsSection from '@/components/listing-form/DescriptionsSection.v
 import FeaturesSection from '@/components/listing-form/FeaturesSection.vue';
 import ListingBasicsSection from '@/components/listing-form/ListingBasicsSection.vue';
 import LocationSection from '@/components/listing-form/LocationSection.vue';
+import MediaLinksSection from '@/components/listing-form/MediaLinksSection.vue';
 import SpecificationsSections from '@/components/listing-form/SpecificationsSections.vue';
-import type { ListingForm, YachtFormFields } from '@/components/listing-form/types';
+import type {
+    ListingForm,
+    YachtFormFields,
+} from '@/components/listing-form/types';
 import VesselSection from '@/components/listing-form/VesselSection.vue';
 import type { MapConfig } from '@/components/LocationMapPicker.vue';
 
@@ -75,6 +79,8 @@ const currencies = ['EUR', 'USD', 'GBP', 'CHF', 'AUD'];
         <DescriptionsSection :form="form" />
 
         <FeaturesSection :form="form" />
+
+        <MediaLinksSection :form="form" />
 
         <ComplianceSection :form="form" />
     </div>

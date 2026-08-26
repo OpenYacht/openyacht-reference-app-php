@@ -118,6 +118,13 @@ export type SharedListingFields = {
     descriptions: { section: string; content: string }[];
     features: { category: string; name: string; slug: string }[];
     compliance: ComplianceForm;
+    videos: MediaLinkForm[];
+    tours: MediaLinkForm[];
+};
+
+export type MediaLinkForm = {
+    url: string;
+    caption: string;
 };
 
 export type YachtFormFields = SharedListingFields & {

@@ -5,8 +5,8 @@ import CharterDetails from '@/components/CharterDetails.vue';
 import type { CharterRate } from '@/lib/listingPrice';
 import { formatListingPrice } from '@/lib/listingPrice';
 import { store as importCopy } from '@/routes/imported-yachts';
-import { dismissConflict as dismissConflictRoute } from '@/routes/synced-listings';
 import { index as charterIndex } from '@/routes/synced-charter-listings';
+import { dismissConflict as dismissConflictRoute } from '@/routes/synced-listings';
 import { index, show } from '@/routes/synced-listings';
 
 type Broker = {

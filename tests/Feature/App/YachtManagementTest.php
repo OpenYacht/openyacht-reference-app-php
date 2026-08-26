@@ -277,6 +277,56 @@ test('gallery items serve a nullable thumbnail that is a rendition of the same i
     expect($item['thumbnail_url'])->toBeNull();
 })->group('LS-16');
 
+test('layouts, documents, videos, and tours serialise per the media schema', function () {
+    Storage::fake('public');
+
+    $editor = yachtActor(Role::Editor);
+    $yacht = SaleYacht::factory()->active()->create([
+        'videos' => [['url' => 'https://vimeo.com/12345', 'caption' => 'Walkthrough']],
+        'tours' => [['url' => 'https://my.matterport.com/show/abc', 'caption' => null]],
+    ]);
+
+    $this->actingAs($editor)
+        ->post(route('yachts.media.store', $yacht), [
+            'collection' => 'layouts',
+            'file' => UploadedFile::fake()->image('ga.jpg', 1600, 900),
+            'caption' => 'General arrangement',
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($editor)
+        ->post(route('yachts.media.store', $yacht), [
+            'collection' => 'documents',
+            'file' => UploadedFile::fake()->create('brochure.pdf', 100, 'application/pdf'),
+            'caption' => 'Brochure',
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $serializer = app(ListingSerializer::class);
+    $partner = FederationPartner::factory()->verified()->create();
+    $media = $serializer->serialize($yacht->refresh(), $partner)['media'];
+
+    // Layouts mirror gallery items (nullable thumbnail, LS-16); videos
+    // and tours are external links with sha256 null; documents carry the
+    // content hash.
+    expect($media['layouts'][0]['caption'])->toBe('General arrangement')
+        ->and($media['layouts'][0]['thumbnail_url'])->toContain('thumbnail')
+        ->and($media['videos'][0])->toBe(['url' => 'https://vimeo.com/12345', 'sha256' => null, 'caption' => 'Walkthrough', 'sort' => 1])
+        ->and($media['tours'][0])->toBe(['url' => 'https://my.matterport.com/show/abc', 'caption' => null, 'sort' => 1])
+        ->and($media['documents'][0]['caption'])->toBe('Brochure')
+        ->and($media['documents'][0]['sha256'])->toMatch('/^[0-9a-f]{64}$/');
+
+    // Documents sit under the documents field group: withheld, the list
+    // serves as [] — a URL you may not use is worse than no entry.
+    $partner->update(['field_groups' => []]);
+    $gated = $serializer->serialize($yacht->refresh(), $partner->refresh())['media'];
+
+    expect($gated['documents'])->toBe([])
+        ->and($gated['layouts'])->not->toBe([]);
+})->group('LS-14', 'LS-16');
+
 test('deleting media requires ownership of the yacht', function () {
     Storage::fake('public');
 

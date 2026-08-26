@@ -140,6 +140,15 @@ trait ValidatesListingFields
             'features.*.name' => ['required_with:features.*', 'string', 'max:255'],
             'features.*.slug' => ['nullable', 'string', 'max:100'],
 
+            // Videos & virtual tours: external-platform links (YouTube,
+            // Vimeo, Matterport…), https like all wire media URLs.
+            'videos' => ['nullable', 'array'],
+            'videos.*.url' => ['required_with:videos.*', 'url:https', 'max:2048'],
+            'videos.*.caption' => ['nullable', 'string', 'max:255'],
+            'tours' => ['nullable', 'array'],
+            'tours.*.url' => ['required_with:tours.*', 'url:https', 'max:2048'],
+            'tours.*.caption' => ['nullable', 'string', 'max:255'],
+
             // Compliance
             'compliance' => ['nullable', 'array'],
             'compliance.not_for_sale_to_us_residents_in_us_waters' => ['nullable', 'boolean'],
