@@ -8,9 +8,12 @@ use Illuminate\Http\JsonResponse;
 /**
  * Unsigned capability negotiation (API-6).
  *
- * This node advertises no optional features yet: `features` lists optional
- * protocol features only — the sale-listing schema and updated_since sync
- * are the mandatory baseline and carry no flag.
+ * `features` lists optional protocol features only — the sale-listing
+ * schema and updated_since sync are the mandatory baseline and carry no
+ * flag. `charter_listings` governs whether the node implements the
+ * charter block of the wire schema, not what inventory it holds
+ * (api-design.md): this node authors and serves charter listings, so it
+ * advertises true even when it happens to hold none.
  *
  * // api-design.md §Capabilities
  */
@@ -22,7 +25,7 @@ class CapabilitiesController extends Controller
             'protocol_versions' => config('openyacht.protocol_versions'),
             'features' => [
                 'subscriptions' => false,
-                'charter_listings' => false,
+                'charter_listings' => true,
                 'media_hashes' => true,
             ],
             'limits' => [

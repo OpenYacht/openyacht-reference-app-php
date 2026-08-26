@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { Head, setLayoutProps } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import CharterDetails from '@/components/CharterDetails.vue';
+import type { CharterRate } from '@/lib/listingPrice';
+import { formatListingPrice } from '@/lib/listingPrice';
+import { index as charterIndex } from '@/routes/imported-charter-yachts';
 import { index, show } from '@/routes/imported-yachts';
 
 type SrcsetMap = Record<number, string>;
@@ -60,7 +64,9 @@ const props = defineProps<{
 
 setLayoutProps({
     breadcrumbs: [
-        { title: 'Imported yachts', href: index() },
+        props.yacht.type === 'charter'
+            ? { title: 'Imported charter yachts', href: charterIndex() }
+            : { title: 'Imported sale yachts', href: index() },
         { title: props.yacht.name, href: show(props.yacht.id) },
     ],
 });
@@ -88,17 +94,15 @@ const largest = (map: SrcsetMap) => {
     return widths.length ? map[Math.max(...widths)] : null;
 };
 
-const formatPrice = (amount: string | null, currency: string | null) => {
-    if (!amount || !currency) {
-        return 'Price on application';
-    }
-
-    return new Intl.NumberFormat(undefined, {
-        style: 'currency',
-        currency,
-        maximumFractionDigits: 0,
-    }).format(Number(amount));
-};
+// Charter copies carry price: null by design — the headline price falls
+// back to the weekly rate range from the charter block.
+const priceLine = computed(() =>
+    formatListingPrice({
+        amount: props.yacht.price_amount,
+        currency: props.yacht.price_currency,
+        rates: (props.yacht.charter?.rates ?? null) as CharterRate[] | null,
+    }),
+);
 
 const specLabels: Record<string, string> = {
     beam_m: 'Beam',
@@ -248,7 +252,7 @@ const payloadJson = computed(() =>
                 </p>
             </div>
             <p class="text-xl font-semibold whitespace-nowrap">
-                {{ formatPrice(yacht.price_amount, yacht.price_currency) }}
+                {{ priceLine }}
             </p>
         </div>
 
@@ -289,6 +293,8 @@ const payloadJson = computed(() =>
                 />
             </article>
         </section>
+
+        <CharterDetails v-if="yacht.type === 'charter'" :charter="yacht.charter" />
 
         <section v-if="specRows.length">
             <h3 class="mb-3 text-lg font-semibold">Specifications</h3>

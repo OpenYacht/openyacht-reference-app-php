@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\ListingStatus;
 use App\Http\Controllers\Controller;
+use App\Models\CharterYacht;
 use App\Models\ImportedMedia;
 use App\Models\ImportedYacht;
 use App\Models\SaleYacht;
@@ -39,6 +40,12 @@ class YachtsController extends Controller
                     ->whereIn('status', [ListingStatus::Active, ListingStatus::UnderOffer])
                     ->get()
                     ->map(fn (SaleYacht $yacht): array => $this->ownItem($yacht, $serializer)),
+            )->merge(
+                CharterYacht::query()
+                    ->with(['vessel', 'assignedBroker', 'media'])
+                    ->whereIn('status', [ListingStatus::Active, ListingStatus::UnderOffer])
+                    ->get()
+                    ->map(fn (CharterYacht $yacht): array => $this->ownItem($yacht, $serializer)),
             );
         }
 
@@ -86,11 +93,18 @@ class YachtsController extends Controller
                 : response()->json(['data' => $this->importedItem($imported)]);
         }
 
+        // UUIDs are unique across both own-listing tables (uuid7, minted
+        // at creation), so the key dereferences to exactly one type.
         $yacht = SaleYacht::query()
             ->with(['vessel', 'assignedBroker', 'priceHistory', 'media'])
             ->where('uuid', $key)
             ->where('status', '!=', ListingStatus::Draft)
-            ->first();
+            ->first()
+            ?? CharterYacht::query()
+                ->with(['vessel', 'assignedBroker', 'media'])
+                ->where('uuid', $key)
+                ->where('status', '!=', ListingStatus::Draft)
+                ->first();
 
         return $yacht === null
             ? response()->json(['error' => 'Not found.'], 404)
@@ -100,7 +114,7 @@ class YachtsController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function ownItem(SaleYacht $yacht, ListingSerializer $serializer): array
+    private function ownItem(SaleYacht|CharterYacht $yacht, ListingSerializer $serializer): array
     {
         return [
             ...$serializer->serialize($yacht, null),

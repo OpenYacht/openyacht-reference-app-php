@@ -2,6 +2,7 @@
 
 use App\Enums\ListingStatus;
 use App\Enums\TrustLevel;
+use App\Models\CharterYacht;
 use App\Models\FederationPartner;
 use App\Models\ListingCopy;
 use App\Models\SaleYacht;
@@ -183,6 +184,122 @@ test('terminal listings stay dereferenceable during retention, then are gone', f
         ->assertGone()
         ->assertJsonPath('error.code', 'GONE');
 })->group('API-9');
+
+test('a charter listing serialises with the schema type conditional: charter block, null price, empty history', function () {
+    $charter = CharterYacht::factory()->active()->create();
+
+    $response = signedGet($this, '/openyacht/v1/listings')->assertOk();
+    $item = $response->json('data.0');
+
+    expect($item['id'])->toBe($charter->canonicalUri())
+        ->and($item['type'])->toBe('charter')
+        // Charter has no asking price by design; pricing is the rate block.
+        ->and($item['listing']['price'])->toBeNull()
+        ->and($item['listing']['price_history'])->toBe([]);
+
+    // Shape-complete charter block: five keys always present (LS-1).
+    expect(array_keys($item['charter']))->toBe([
+        'rates', 'operating_areas', 'summer_base_port', 'winter_base_port', 'crew',
+    ]);
+
+    // Every rate carries all ten keys, money as digit strings (API-12).
+    $rate = $item['charter']['rates'][0];
+    expect(array_keys($rate))->toBe([
+        'season', 'rate_type', 'amount_min', 'amount_max', 'currency',
+        'contract_terms', 'apa_percent', 'vat_percent', 'valid_from', 'valid_to',
+    ])
+        ->and($rate['amount_min'])->toBeString()->toMatch('/^\d+(\.\d+)?$/')
+        ->and($rate['currency'])->toMatch('/^[A-Z]{3}$/');
+
+    // Every crew member carries all six keys; the TBA entry has the
+    // personal fields null.
+    $tba = collect($item['charter']['crew'])->firstWhere('tba', true);
+    expect(array_keys($tba))->toBe(['role', 'name', 'nationality', 'bio', 'photo_url', 'tba'])
+        ->and($tba['name'])->toBeNull();
+})->group('LS-1', 'LS-10');
+
+test('the feed unions sale and charter listings and the cursor walks across both types', function () {
+    SaleYacht::factory()->active()->count(2)->create();
+    CharterYacht::factory()->active()->count(2)->create();
+
+    $seen = [];
+    $types = [];
+    $path = '/openyacht/v1/listings?page_size=3';
+
+    $first = signedGet($this, $path)->assertOk();
+    $seen = array_merge($seen, array_column($first->json('data'), 'id'));
+    $types = array_merge($types, array_column($first->json('data'), 'type'));
+    $cursor = $first->json('meta.next_cursor');
+
+    expect($first->json('data'))->toHaveCount(3)
+        ->and($cursor)->toBeString();
+
+    $second = signedGet($this, $path.'&cursor='.urlencode($cursor))->assertOk();
+    $seen = array_merge($seen, array_column($second->json('data'), 'id'));
+    $types = array_merge($types, array_column($second->json('data'), 'type'));
+
+    expect($second->json('meta'))->not->toHaveKey('next_cursor')
+        ->and(array_unique($seen))->toHaveCount(4)
+        ->and(array_count_values($types))->toBe(['sale' => 2, 'charter' => 2]);
+})->group('API-1', 'API-2');
+
+test('a withdrawn charter listing tombstones in updated_since like any other', function () {
+    $charter = CharterYacht::factory()->active()->create();
+    $charter->transitionTo(ListingStatus::Withdrawn);
+
+    $since = now()->subHour()->utc()->format('Y-m-d\TH:i:s\Z');
+    $data = signedGet($this, '/openyacht/v1/listings?updated_since='.urlencode($since))
+        ->assertOk()
+        ->json('data');
+
+    expect($data[0]['id'])->toBe($charter->canonicalUri())
+        ->and($data[0]['tombstone'])->toBeTrue()
+        ->and($data[0]['status'])->toBe('withdrawn');
+})->group('API-2', 'API-3');
+
+test('the single-listing endpoint dereferences charter canonical URIs', function () {
+    $charter = CharterYacht::factory()->active()->create();
+
+    signedGet($this, "/openyacht/v1/listings/{$charter->uuid}")
+        ->assertOk()
+        ->assertJsonPath('id', $charter->canonicalUri())
+        ->assertJsonPath('type', 'charter');
+})->group('ID-1');
+
+test('charter rates sit under the pricing field group and are emptied server-side without it', function () {
+    CharterYacht::factory()->active()->create();
+
+    $this->partner->update(['field_groups' => []]);
+
+    $gated = signedGet($this, '/openyacht/v1/listings')->json('data.0');
+
+    expect($gated['charter']['rates'])->toBe([])
+        // The rest of the block is ungated.
+        ->and($gated['charter']['operating_areas'])->not->toBe([])
+        ->and($gated['charter']['summer_base_port'])->not->toBeNull();
+
+    $this->partner->update(['field_groups' => null]);
+
+    $full = signedGet($this, '/openyacht/v1/listings')->json('data.0');
+
+    expect($full['charter']['rates'])->not->toBe([]);
+})->group('LS-14', 'API-5');
+
+test('crew is distributed only while the node holds an attestation', function () {
+    CharterYacht::factory()->active()->unattested()->create();
+
+    $withheld = signedGet($this, '/openyacht/v1/listings')->json('data.0');
+
+    // Withheld crew is an empty list — indistinguishable from "no crew
+    // data", never a partial or flagged payload.
+    expect($withheld['charter']['crew'])->toBe([]);
+
+    CharterYacht::query()->first()->update(['crew_attested_at' => now()]);
+
+    $attested = signedGet($this, '/openyacht/v1/listings')->json('data.0');
+
+    expect($attested['charter']['crew'])->not->toBe([]);
+})->group('LS-15');
 
 test('a provisional partner authenticates but receives no listings', function () {
     $this->partner->update(['trust_level' => TrustLevel::Provisional]);

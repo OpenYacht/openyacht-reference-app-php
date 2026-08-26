@@ -68,6 +68,44 @@ test('a cold sync pulls every page and stores copies with provenance', function 
         ->and($partner->consecutive_failures)->toBe(0);
 })->group('ID-2', 'ID-3', 'API-2');
 
+test('a charter listing syncs with its wire type and verbatim charter block', function () {
+    $partner = FederationPartner::factory()->verified()->create(['domain' => 'openyacht.partner.example']);
+
+    $charterBlock = [
+        'rates' => [[
+            'season' => 'summer', 'rate_type' => 'weekly',
+            'amount_min' => '125000', 'amount_max' => '135000', 'currency' => 'EUR',
+            'contract_terms' => 'MYBA', 'apa_percent' => 30, 'vat_percent' => null,
+            'valid_from' => '2026-05-01', 'valid_to' => '2026-09-30',
+        ]],
+        'operating_areas' => [['name' => 'Western Mediterranean', 'slug' => 'western-mediterranean', 'season' => 'summer']],
+        'summer_base_port' => 'Palma de Mallorca',
+        'winter_base_port' => null,
+        'crew' => [],
+    ];
+
+    Http::fake([
+        'openyacht.partner.example/openyacht/v1/listings?*' => Http::response(
+            listingsResponse([listingItem('openyacht.partner.example', 'uuid-charter', [
+                'type' => 'charter',
+                'listing' => ['name' => 'CHARTER COPY', 'price' => null],
+                'charter' => $charterBlock,
+            ])]),
+        ),
+    ]);
+
+    app(SyncService::class)->sync($partner);
+
+    $copy = ListingCopy::query()->firstOrFail();
+
+    // The wire type is stored as sent, and the charter block is kept
+    // verbatim in the payload — the consumer never reshapes it. (Values,
+    // not key order: MySQL normalises JSON object key order on storage.)
+    expect($copy->type)->toBe('charter')
+        ->and(data_get($copy->payload, 'charter'))->toEqualCanonicalizing($charterBlock)
+        ->and(data_get($copy->payload, 'listing.price'))->toBeNull();
+})->group('ID-3', 'LS-1');
+
 test('sync requests are signed federation requests', function () {
     $partner = FederationPartner::factory()->verified()->create(['domain' => 'openyacht.partner.example']);
 
@@ -205,4 +243,26 @@ test('the synced listing filters read the copy payload, floats included', functi
     expect($names(['loa_min' => 30.5]))->toBe(['BIG ONE'])
         ->and($names(['loa_max' => 30]))->toBe(['SMALL ONE'])
         ->and($names(['category' => 'flybridge']))->toBe(['BIG ONE']);
+});
+
+test('sale and charter copies are never mixed in one synced list', function () {
+    $this->seed(RoleSeeder::class);
+
+    ListingCopy::factory()->create(['name' => 'SALE COPY']);
+    ListingCopy::factory()->create([
+        'name' => 'CHARTER COPY',
+        'type' => 'charter',
+        'canonical_uri' => 'https://openyacht.partner.example/openyacht/v1/listings/uuid-charter',
+    ]);
+
+    $admin = tap(User::factory()->create(), fn (User $user) => $user->assignRole(Role::Admin));
+
+    $names = fn (string $routeName): array => collect(
+        $this->actingAs($admin)
+            ->get(route($routeName))
+            ->original->getData()['page']['props']['copies'],
+    )->pluck('name')->all();
+
+    expect($names('synced-listings.index'))->toBe(['SALE COPY'])
+        ->and($names('synced-charter-listings.index'))->toBe(['CHARTER COPY']);
 });

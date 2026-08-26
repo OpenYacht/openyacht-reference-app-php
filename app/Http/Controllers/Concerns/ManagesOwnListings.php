@@ -1,0 +1,236 @@
+<?php
+
+namespace App\Http\Controllers\Concerns;
+
+use App\Models\CharterYacht;
+use App\Models\SaleYacht;
+use App\Services\Federation\BuilderRegistry;
+use App\Services\Federation\CategoryVocabulary;
+use App\Services\Federation\RichTextSanitizer;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
+
+/**
+ * What the sale and charter own-listing controllers share: media actions
+ * (which are identical — the LS-8 rules don't vary by type), the vessel
+ * and shared-field mappers, and the map-picker config. The type-specific
+ * attribute mapping (price vs the charter block) stays in each
+ * controller.
+ */
+trait ManagesOwnListings
+{
+    /**
+     * The coordinate-picker map is a data-entry aid only; Mapbox is opt-in
+     * and silently degrades to OpenStreetMap when no token is configured.
+     *
+     * @return array{provider: string, mapbox_token: string|null}
+     */
+    protected function mapConfig(): array
+    {
+        $provider = config('openyacht.map.provider', 'openstreetmap');
+        $token = config('openyacht.map.mapbox_token');
+        $token = is_string($token) && $token !== '' ? $token : null;
+
+        if ($provider === 'mapbox' && $token === null) {
+            $provider = 'openstreetmap';
+        }
+
+        return [
+            'provider' => $provider === 'mapbox' ? 'mapbox' : 'openstreetmap',
+            'mapbox_token' => $provider === 'mapbox' ? $token : null,
+        ];
+    }
+
+    protected function storeListingMedia(Request $request, SaleYacht|CharterYacht $yacht): RedirectResponse
+    {
+        Gate::authorize('update', $yacht);
+
+        $request->validate([
+            'collection' => ['required', 'in:profile,gallery'],
+            'file' => ['required', 'file', 'image', 'max:30720'],
+        ]);
+
+        $file = $request->file('file');
+        [$width, $height] = getimagesize($file->getRealPath()) ?: [null, null];
+
+        $yacht->addMedia($file)
+            ->withCustomProperties([
+                // The wire's content hash (media_hashes capability).
+                'sha256' => hash_file('sha256', $file->getRealPath()),
+                'width' => $width,
+                'height' => $height,
+                'caption' => $request->string('caption')->value() ?: null,
+            ])
+            ->toMediaCollection($request->string('collection')->value());
+
+        // Media changes are federation-visible.
+        $yacht->touch('federation_updated_at');
+
+        return back();
+    }
+
+    protected function updateListingMedia(Request $request, SaleYacht|CharterYacht $yacht, Media $media): RedirectResponse
+    {
+        Gate::authorize('update', $yacht);
+
+        abort_unless($media->model_id === $yacht->id && $media->model_type === $yacht::class, 404);
+
+        $request->validate(['caption' => ['nullable', 'string', 'max:255']]);
+
+        $media->setCustomProperty('caption', $request->input('caption'));
+        $media->save();
+
+        $yacht->touch('federation_updated_at');
+
+        return back();
+    }
+
+    protected function destroyListingMedia(SaleYacht|CharterYacht $yacht, Media $media): RedirectResponse
+    {
+        Gate::authorize('update', $yacht);
+
+        abort_unless($media->model_id === $yacht->id && $media->model_type === $yacht::class, 404);
+
+        $media->delete();
+        $yacht->touch('federation_updated_at');
+
+        return back();
+    }
+
+    /**
+     * A category chosen from the vendored vocabulary carries its canonical
+     * name; anything else is a free-text name with a null slug.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function specificationsAttributes(FormRequest $request): ?array
+    {
+        $specifications = $request->input('specifications');
+
+        if (! is_array($specifications)) {
+            return $specifications;
+        }
+
+        $categorySlug = data_get($specifications, 'category.slug');
+
+        if (is_string($categorySlug) && $categorySlug !== '') {
+            $specifications['category']['name'] = app(CategoryVocabulary::class)->canonicalName($categorySlug);
+        }
+
+        return $specifications;
+    }
+
+    /**
+     * Authorities SHOULD strip nonconforming markup on ingest
+     * (listing-schema.md §Conventions 7); links back to this node's own
+     * websites are removed too — descriptions travel to partner websites
+     * and must not funnel their visitors back here.
+     *
+     * @return array<int, array{section: string|null, content: string}>|null
+     */
+    protected function sanitizedDescriptions(FormRequest $request): ?array
+    {
+        $descriptions = $request->input('descriptions');
+
+        if (! is_array($descriptions)) {
+            return $descriptions;
+        }
+
+        $sanitizer = app(RichTextSanitizer::class);
+
+        /** @var list<string> $ownHosts */
+        $ownHosts = collect([
+            config('openyacht.domain'),
+            parse_url((string) config('app.url'), PHP_URL_HOST),
+            parse_url((string) config('openyacht.website'), PHP_URL_HOST),
+        ])->filter(fn ($host): bool => is_string($host) && $host !== '')->values()->all();
+
+        return collect($descriptions)
+            ->filter(fn ($section): bool => is_array($section) && is_string($section['content'] ?? null))
+            ->map(fn (array $section): array => [
+                'section' => is_string($section['section'] ?? null) && $section['section'] !== '' ? $section['section'] : null,
+                'content' => $sanitizer->sanitize($section['content'], $ownHosts),
+            ])
+            ->filter(fn (array $section): bool => $section['content'] !== '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function vesselAttributes(FormRequest $request, BuilderRegistry $registry): array
+    {
+        $slug = $request->input('builder_slug') ?: null;
+
+        $previousNames = collect(explode(',', (string) $request->input('previous_names')))
+            ->map(fn (string $name): string => trim($name))
+            ->filter()
+            ->values()
+            ->all();
+
+        return [
+            'builder_slug' => $slug,
+            // With a registry slug, the canonical registry name is the
+            // display truth; without one, the free-text name stands.
+            'builder_name' => $slug !== null
+                ? $registry->canonicalName($slug)
+                : $request->input('builder_name'),
+            'model_name' => $request->input('model_name'),
+            'model_slug' => $request->input('model_slug'),
+            'year_built' => $request->input('year_built'),
+            'refit_year' => $request->input('refit_year'),
+            'loa_m' => $request->input('loa_m'),
+            'hin' => $request->input('hin'),
+            'imo' => $request->input('imo'),
+            'mmsi' => $request->input('mmsi'),
+            'official_number' => $request->input('official_number'),
+            'previous_names' => $previousNames,
+        ];
+    }
+
+    /**
+     * The shared (non-price, non-charter) listing columns both types map
+     * from the same form fields.
+     *
+     * @return array<string, mixed>
+     */
+    protected function sharedListingAttributes(FormRequest $request): array
+    {
+        return [
+            'name' => $request->string('name')->value(),
+            'summary' => $request->input('summary'),
+            'condition' => $request->input('condition'),
+            'location_display' => $request->input('location_display'),
+            'location_city' => $request->input('location_city'),
+            'location_state' => $request->input('location_state'),
+            'location_country' => $request->input('location_country'),
+            'location_marina' => $request->input('location_marina'),
+            'location_lat' => $request->input('location_lat'),
+            'location_lon' => $request->input('location_lon'),
+            'specifications' => $this->specificationsAttributes($request),
+            'descriptions' => $this->sanitizedDescriptions($request),
+            'features' => $request->input('features'),
+            'compliance' => $request->input('compliance'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function mediaPayload(?Media $media): ?array
+    {
+        if ($media === null) {
+            return null;
+        }
+
+        return [
+            'id' => $media->id,
+            'url' => $media->getFullUrl(),
+            'caption' => $media->getCustomProperty('caption'),
+        ];
+    }
+}

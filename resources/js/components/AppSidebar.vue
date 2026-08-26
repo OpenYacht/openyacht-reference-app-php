@@ -8,11 +8,14 @@ import { useInitials } from '@/composables/useInitials';
 import { toUrl } from '@/lib/utils';
 import { dashboard, logout } from '@/routes';
 import { index as apiKeysIndex } from '@/routes/api-keys';
+import { index as charterYachtsIndex } from '@/routes/charter-yachts';
+import { index as importedCharterYachtsIndex } from '@/routes/imported-charter-yachts';
 import { index as importedYachtsIndex } from '@/routes/imported-yachts';
 import { index as nodeDirectoryIndex } from '@/routes/node-directory';
 import { index as partnersIndex } from '@/routes/partners';
 import { edit as editProfile } from '@/routes/profile';
 import { index as rolesIndex } from '@/routes/roles';
+import { index as syncedCharterListingsIndex } from '@/routes/synced-charter-listings';
 import { index as syncedListingsIndex } from '@/routes/synced-listings';
 import { index as usersIndex } from '@/routes/users';
 import { index as yachtsIndex } from '@/routes/yachts';
@@ -33,26 +36,48 @@ const mainNavItems = computed<NavigationMenuItem[]>(() => [
     ...(page.props.auth.canManageOwnYachts
         ? [
               {
-                  label: 'Our yachts',
+                  label: 'Sale yachts',
                   icon: 'i-lucide-sailboat',
                   to: toUrl(yachtsIndex()),
                   active: isCurrentOrParentUrl(yachtsIndex()),
               },
           ]
         : []),
+    ...(page.props.auth.canManageOwnCharterYachts
+        ? [
+              {
+                  label: 'Charter yachts',
+                  icon: 'i-lucide-anchor',
+                  to: toUrl(charterYachtsIndex()),
+                  active: isCurrentOrParentUrl(charterYachtsIndex()),
+              },
+          ]
+        : []),
     ...(page.props.auth.canViewPartnerListings
         ? [
               {
-                  label: 'Imported yachts',
+                  label: 'Imported sale',
                   icon: 'i-lucide-ship',
                   to: toUrl(importedYachtsIndex()),
                   active: isCurrentUrl(importedYachtsIndex()),
               },
               {
-                  label: 'Synced listings',
+                  label: 'Imported charter',
+                  icon: 'i-lucide-life-buoy',
+                  to: toUrl(importedCharterYachtsIndex()),
+                  active: isCurrentUrl(importedCharterYachtsIndex()),
+              },
+              {
+                  label: 'Synced sale',
                   icon: 'i-lucide-refresh-cw',
                   to: toUrl(syncedListingsIndex()),
                   active: isCurrentUrl(syncedListingsIndex()),
+              },
+              {
+                  label: 'Synced charter',
+                  icon: 'i-lucide-refresh-ccw-dot',
+                  to: toUrl(syncedCharterListingsIndex()),
+                  active: isCurrentUrl(syncedCharterListingsIndex()),
               },
           ]
         : []),

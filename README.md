@@ -8,6 +8,7 @@ This app is reference material first, installable product second. It exists so a
 
 **Authority role**
 - Own listings with the full wire schema (specifications, descriptions in the restricted HTML subset, features, compliance), validated at data entry against the vendored registries — builder slugs, category slugs — exactly as the spec requires
+- **Both listing types, structurally separated**: sale and charter listings live in separate tables (the table *is* the type, which is how the type stays immutable like the canonical UUID), authored on separate screens, and served through one unioned feed. Charter listings carry the schema's type conditional — `listing.price: null`, a shape-complete `charter` block (rates by season, operating areas validated against the vendored destination registry, base ports, crew) — with rates under the `pricing` field group and crew distributed only while a charter-manager/captain attestation is on record (LS-15)
 - Ed25519 request signing and verification (passes the spec's signing test vectors byte-for-byte), key rotation (`openyacht:key:rotate` — routine, emergency, and post-overlap retirement)
 - `/.well-known/openyacht`, capabilities, health, and the listings endpoints with keyset cursors, `updated_since` incremental sync, tombstones, and per-partner field-group gating
 - Listing lifecycle (`draft → active ⇄ under_offer → sold | withdrawn`) with canonical URIs minted once and terminal listings dereferenceable through the retention window
@@ -27,7 +28,6 @@ This app is reference material first, installable product second. It exists so a
 
 The optional protocol features this node's capabilities endpoint honestly advertises as `false`:
 
-- **Charter listings** — the wire's `charter` block (rates, operating areas from the destination registry, crew, guest capacities in action). Sale listings correctly carry `charter: null`, but no charter listing has flowed through this node yet.
 - **Subscriptions (push)** — signed webhook delivery of changes (`POST /openyacht/v1/subscriptions`). Polling `updated_since` is the mandatory baseline and is fully implemented; push is the optional layer on top.
 
 Also pending: an import connector for an incumbent feed, per-partner sharing-rules UI, an installation wizard, and signed URLs for the `media_original` field group.

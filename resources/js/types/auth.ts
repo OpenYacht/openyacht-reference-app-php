@@ -17,6 +17,7 @@ export type Auth = {
     canManageFederation: boolean;
     canManageListings: boolean;
     canManageOwnYachts: boolean;
+    canManageOwnCharterYachts: boolean;
     canViewPartnerListings: boolean;
     canManageSettings: boolean;
 };

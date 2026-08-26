@@ -19,21 +19,37 @@ use Inertia\Inertia;
 use Inertia\Response;
 use InvalidArgumentException;
 
+/**
+ * Sale and charter imports are never mixed in one list — one index per
+ * wire type, mirroring the own-listing screens.
+ */
 class ImportedYachtController extends Controller
 {
     use FiltersListings;
 
     public function index(Request $request, CategoryVocabulary $categories): Response
     {
+        return $this->typedIndex($request, $categories, 'sale');
+    }
+
+    public function charterIndex(Request $request, CategoryVocabulary $categories): Response
+    {
+        return $this->typedIndex($request, $categories, 'charter');
+    }
+
+    private function typedIndex(Request $request, CategoryVocabulary $categories, string $type): Response
+    {
         Gate::authorize('viewAny', ImportedYacht::class);
 
         $filters = $this->listingFilters($request);
 
         return Inertia::render('imported-yachts/Index', [
+            'listingType' => $type,
             'filters' => $filters,
             'categories' => $categories->all(),
             'yachts' => ImportedYacht::query()
                 ->with(['media', 'copy.partner:id,domain,last_ok_at'])
+                ->where('type', $type)
                 ->when($filters['q'] !== '', fn ($query) => $query->where(
                     fn ($query) => $query
                         ->where('name', 'like', "%{$filters['q']}%")
@@ -66,6 +82,9 @@ class ImportedYachtController extends Controller
                         'loa_m' => $yacht->loa_m,
                         'price_amount' => $yacht->price_amount,
                         'price_currency' => $yacht->price_currency,
+                        // Charter copies have no asking price; the card
+                        // falls back to the payload's rate range.
+                        'charter_rates' => data_get($yacht->copy->payload, 'charter.rates', []),
                         'location_display' => $yacht->location_display,
                         'attribution_text' => $yacht->attribution_text,
                         'authority_domain' => $yacht->copy->authority_domain,

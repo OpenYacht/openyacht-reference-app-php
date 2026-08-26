@@ -15,7 +15,9 @@ use Inertia\Response;
 /**
  * Copies of partners' listings, with provenance and attribution.
  * Stale partners flag every copy in the UI (FP-15); attribution follows
- * the listing's usage block (ID-10).
+ * the listing's usage block (ID-10). Sale and charter copies are never
+ * mixed in one list — one index per wire type, mirroring the own-listing
+ * screens.
  */
 class SyncedListingController extends Controller
 {
@@ -23,15 +25,27 @@ class SyncedListingController extends Controller
 
     public function index(Request $request, CategoryVocabulary $categories): Response
     {
+        return $this->typedIndex($request, $categories, 'sale');
+    }
+
+    public function charterIndex(Request $request, CategoryVocabulary $categories): Response
+    {
+        return $this->typedIndex($request, $categories, 'charter');
+    }
+
+    private function typedIndex(Request $request, CategoryVocabulary $categories, string $type): Response
+    {
         Gate::authorize('viewAny', ListingCopy::class);
 
         $filters = $this->listingFilters($request);
 
         return Inertia::render('federation/listings/Index', [
+            'listingType' => $type,
             'filters' => $filters,
             'categories' => $categories->all(),
             'copies' => ListingCopy::query()
                 ->with(['partner:id,domain,node_name,last_ok_at', 'import:id,listing_copy_id'])
+                ->where('type', $type)
                 ->when($filters['q'] !== '', fn ($query) => $query->where(
                     fn ($query) => $query
                         ->where('name', 'like', "%{$filters['q']}%")
@@ -62,6 +76,11 @@ class SyncedListingController extends Controller
                     'type' => $copy->type,
                     'status' => $copy->status->value,
                     'status_label' => $copy->status->label(),
+                    'price_amount' => data_get($copy->payload, 'listing.price.amount'),
+                    'price_currency' => data_get($copy->payload, 'listing.price.currency'),
+                    // Charter copies carry price: null by design; the card
+                    // falls back to the payload's rate range.
+                    'charter_rates' => data_get($copy->payload, 'charter.rates', []),
                     // The partner's display name, never the canonical URI:
                     // that URI is the partner's signed API and dereferences
                     // to nothing in a browser.

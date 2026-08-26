@@ -11,7 +11,9 @@ test('capabilities is served unsigned with protocol versions, features, and limi
             'protocol_versions' => ['1.0'],
             'features' => [
                 'subscriptions' => false,
-                'charter_listings' => false,
+                // charter_listings governs implementing the charter block
+                // of the wire schema, not inventory held (api-design.md).
+                'charter_listings' => true,
                 'media_hashes' => true,
             ],
             'limits' => [

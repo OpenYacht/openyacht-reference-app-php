@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
-import YachtForm, {
+import {
     emptyEngine,
     emptyGenerator,
     emptySpecifications,
     normalizeCompliance,
-} from '@/components/YachtForm.vue';
-import type { SpecificationsForm } from '@/components/YachtForm.vue';
+} from '@/components/listing-form/types';
+import type { SpecificationsForm } from '@/components/listing-form/types';
+import YachtForm from '@/components/YachtForm.vue';
 import { edit, index, transition, update } from '@/routes/yachts';
 import {
     destroy as destroyMedia,
@@ -117,7 +118,7 @@ const props = defineProps<{
 
 setLayoutProps({
     breadcrumbs: [
-        { title: 'Our yachts', href: index() },
+        { title: 'Sale yachts', href: index() },
         { title: props.yacht.name, href: edit(props.yacht.id) },
     ],
 });

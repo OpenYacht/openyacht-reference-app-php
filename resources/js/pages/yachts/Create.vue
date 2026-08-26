@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
 import Heading from '@/components/Heading.vue';
-import YachtForm, {
+import {
     emptySpecifications,
     normalizeCompliance,
-} from '@/components/YachtForm.vue';
+} from '@/components/listing-form/types';
+import YachtForm from '@/components/YachtForm.vue';
 import { create, index, store } from '@/routes/yachts';
 
 defineProps<{
@@ -16,7 +17,7 @@ defineProps<{
 defineOptions({
     layout: {
         breadcrumbs: [
-            { title: 'Our yachts', href: index() },
+            { title: 'Sale yachts', href: index() },
             { title: 'New listing', href: create() },
         ],
     },

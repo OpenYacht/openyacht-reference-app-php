@@ -62,4 +62,12 @@ class Vessel extends Model
     {
         return $this->hasMany(SaleYacht::class);
     }
+
+    /**
+     * @return HasMany<CharterYacht, $this>
+     */
+    public function charterYachts(): HasMany
+    {
+        return $this->hasMany(CharterYacht::class);
+    }
 }

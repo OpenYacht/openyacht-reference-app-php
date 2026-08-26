@@ -3,12 +3,20 @@
 namespace App\Services\Federation;
 
 use App\Enums\FieldGroup;
+use App\Models\CharterYacht;
 use App\Models\FederationPartner;
 use App\Models\SaleYacht;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
- * Serialises a sale listing to its wire payload for one partner.
+ * Serialises an own listing to its wire payload for one partner.
+ *
+ * Sale and charter listings share one envelope; the schema's type
+ * conditional is the only divergence — a charter listing carries
+ * listing.price: null (its pricing is the charter rate block) and a
+ * shape-complete charter object, a sale listing carries charter: null
+ * (listing-schema.md §Charter). Because the two types live in separate
+ * tables, the wire type comes from the model class itself.
  *
  * Every response contains the complete schema: a value the node does not
  * have — or that the partner's sharing rules withhold — is null or []
@@ -43,13 +51,13 @@ class ListingSerializer
      *
      * @return array<string, mixed>
      */
-    public function serialize(SaleYacht $yacht, ?FederationPartner $partner): array
+    public function serialize(SaleYacht|CharterYacht $yacht, ?FederationPartner $partner): array
     {
         $granted = fn (FieldGroup $group): bool => $partner === null || $partner->hasFieldGroup($group);
 
         return [
             'id' => $yacht->canonicalUri(),
-            'type' => 'sale',
+            'type' => $yacht instanceof CharterYacht ? 'charter' : 'sale',
             'status' => $yacht->status->value,
             'updated_at' => $yacht->federation_updated_at?->utc()->format('Y-m-d\TH:i:s\Z'),
             'listed_at' => $yacht->listed_at?->utc()->format('Y-m-d\TH:i:s\Z'),
@@ -61,7 +69,9 @@ class ListingSerializer
             'descriptions' => array_values($yacht->descriptions ?? []),
             'features' => array_values($yacht->features ?? []),
             'media' => $this->media($yacht, $granted(FieldGroup::Documents)),
-            'charter' => null,
+            'charter' => $yacht instanceof CharterYacht
+                ? $this->charter($yacht, $granted(FieldGroup::Pricing))
+                : null,
             'usage' => $this->usage(),
             'compliance' => $this->compliance($yacht),
         ];
@@ -73,7 +83,7 @@ class ListingSerializer
      *
      * @return array<string, mixed>
      */
-    public function tombstone(SaleYacht $yacht): array
+    public function tombstone(SaleYacht|CharterYacht $yacht): array
     {
         return [
             'id' => $yacht->canonicalUri(),
@@ -86,7 +96,7 @@ class ListingSerializer
     /**
      * @return array<string, mixed>
      */
-    private function vessel(SaleYacht $yacht, bool $identifiersGranted): array
+    private function vessel(SaleYacht|CharterYacht $yacht, bool $identifiersGranted): array
     {
         $vessel = $yacht->vessel;
 
@@ -107,20 +117,25 @@ class ListingSerializer
     /**
      * @return array<string, mixed>
      */
-    private function listing(SaleYacht $yacht, bool $pricingGranted, bool $locationGranted, bool $historyGranted): array
+    private function listing(SaleYacht|CharterYacht $yacht, bool $pricingGranted, bool $locationGranted, bool $historyGranted): array
     {
-        $priceShared = $pricingGranted && ! $yacht->price_on_application;
+        // Charter listings have no asking price by design — the schema's
+        // type conditional requires listing.price: null, and their
+        // price_history is the empty list (LS-10); charter pricing is the
+        // rate block.
+        $isCharter = $yacht instanceof CharterYacht;
+        $priceShared = ! $isCharter && $pricingGranted && ! $yacht->price_on_application;
 
         return [
             'name' => $yacht->name,
             'summary' => $yacht->summary,
-            'price' => [
+            'price' => $isCharter ? null : [
                 'amount' => $priceShared ? $yacht->price_amount : null,
                 'currency' => $priceShared ? $yacht->price_currency : null,
                 'on_application' => $yacht->price_on_application,
                 'starting_price' => $yacht->starting_price,
             ],
-            'price_history' => $historyGranted && $pricingGranted
+            'price_history' => ! $isCharter && $historyGranted && $pricingGranted
                 ? $yacht->priceHistory
                     ->map(fn ($entry): array => [
                         'amount' => $entry->amount,
@@ -153,7 +168,7 @@ class ListingSerializer
     /**
      * @return array<string, mixed>
      */
-    private function specifications(SaleYacht $yacht): array
+    private function specifications(SaleYacht|CharterYacht $yacht): array
     {
         $stored = $yacht->specifications ?? [];
         $complete = [];
@@ -178,7 +193,7 @@ class ListingSerializer
      *
      * @return array<string, mixed>
      */
-    private function media(SaleYacht $yacht, bool $documentsGranted): array
+    private function media(SaleYacht|CharterYacht $yacht, bool $documentsGranted): array
     {
         $profile = $yacht->getFirstMedia('profile');
 
@@ -211,6 +226,64 @@ class ListingSerializer
     }
 
     /**
+     * The charter block, always shape-complete: every key present, [] or
+     * null for anything unknown or withheld (LS-1). Rates sit under the
+     * pricing field group per the gating map (LS-14). Crew is personal
+     * data: it is distributed only while the node holds a
+     * charter-manager/captain attestation (LS-15) — withheld, it is [],
+     * indistinguishable from "no crew data", never a partial list.
+     *
+     * // listing-schema.md §Charter, §Field groups
+     *
+     * @return array<string, mixed>
+     */
+    private function charter(CharterYacht $yacht, bool $pricingGranted): array
+    {
+        return [
+            'rates' => $pricingGranted
+                ? collect($yacht->rates ?? [])
+                    ->map(fn (array $rate): array => [
+                        'season' => $rate['season'],
+                        'rate_type' => $rate['rate_type'],
+                        'amount_min' => $rate['amount_min'] ?? null,
+                        'amount_max' => $rate['amount_max'] ?? null,
+                        'currency' => $rate['currency'] ?? null,
+                        'contract_terms' => $rate['contract_terms'] ?? null,
+                        'apa_percent' => $rate['apa_percent'] ?? null,
+                        'vat_percent' => $rate['vat_percent'] ?? null,
+                        'valid_from' => $rate['valid_from'] ?? null,
+                        'valid_to' => $rate['valid_to'] ?? null,
+                    ])
+                    ->values()
+                    ->all()
+                : [],
+            'operating_areas' => collect($yacht->operating_areas ?? [])
+                ->map(fn (array $area): array => [
+                    'name' => $area['name'],
+                    'slug' => $area['slug'] ?? null,
+                    'season' => $area['season'] ?? null,
+                ])
+                ->values()
+                ->all(),
+            'summer_base_port' => $yacht->summer_base_port,
+            'winter_base_port' => $yacht->winter_base_port,
+            'crew' => $yacht->crew_attested_at !== null
+                ? collect($yacht->crew ?? [])
+                    ->map(fn (array $member): array => [
+                        'role' => $member['role'],
+                        'name' => $member['name'] ?? null,
+                        'nationality' => $member['nationality'] ?? null,
+                        'bio' => $member['bio'] ?? null,
+                        'photo_url' => $member['photo_url'] ?? null,
+                        'tba' => (bool) ($member['tba'] ?? false),
+                    ])
+                    ->values()
+                    ->all()
+                : [],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function usage(): array
@@ -229,7 +302,7 @@ class ListingSerializer
     /**
      * @return array<string, mixed>
      */
-    private function compliance(SaleYacht $yacht): array
+    private function compliance(SaleYacht|CharterYacht $yacht): array
     {
         $stored = $yacht->compliance ?? [];
 

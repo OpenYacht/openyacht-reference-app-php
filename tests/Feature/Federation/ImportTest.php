@@ -263,3 +263,21 @@ test('importing requires the listings permission', function () {
 
     expect(ImportedYacht::query()->count())->toBe(1);
 });
+
+test('sale and charter imports are never mixed in one list', function () {
+    $this->seed(RoleSeeder::class);
+
+    ImportedYacht::factory()->create(['name' => 'SALE IMPORT']);
+    ImportedYacht::factory()->create(['name' => 'CHARTER IMPORT', 'type' => 'charter']);
+
+    $editor = tap(User::factory()->create(), fn (User $user) => $user->assignRole(Role::Editor));
+
+    $names = fn (string $routeName): array => collect(
+        $this->actingAs($editor)
+            ->get(route($routeName))
+            ->original->getData()['page']['props']['yachts'],
+    )->pluck('name')->all();
+
+    expect($names('imported-yachts.index'))->toBe(['SALE IMPORT'])
+        ->and($names('imported-charter-yachts.index'))->toBe(['CHARTER IMPORT']);
+});

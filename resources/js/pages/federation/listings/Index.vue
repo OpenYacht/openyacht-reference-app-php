@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, router, setLayoutProps, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import ListingCard from '@/components/ListingCard.vue';
 import type { ListingBadge } from '@/components/ListingCard.vue';
 import type { ListingFilters } from '@/components/ListingFilterBar.vue';
 import ListingIndexShell from '@/components/ListingIndexShell.vue';
+import type { CharterRate } from '@/lib/listingPrice';
+import { formatListingPrice } from '@/lib/listingPrice';
 import { store as importCopy } from '@/routes/imported-yachts';
+import { index as charterIndex } from '@/routes/synced-charter-listings';
 import { index, show } from '@/routes/synced-listings';
 
 type Copy = {
@@ -16,6 +20,9 @@ type Copy = {
     type: string;
     status: string;
     status_label: string;
+    price_amount: string | null;
+    price_currency: string | null;
+    charter_rates: CharterRate[];
     node_name: string;
     listing_updated_at: string | null;
     received_at: string;
@@ -25,21 +32,26 @@ type Copy = {
     attribution: string | null;
 };
 
-defineProps<{
+const props = defineProps<{
+    listingType: 'sale' | 'charter';
     filters: ListingFilters;
     categories: { slug: string; name: string }[];
     copies: Copy[];
 }>();
 
-defineOptions({
-    layout: {
-        breadcrumbs: [
-            {
-                title: 'Synced listings',
-                href: index(),
-            },
-        ],
-    },
+const title = computed(() =>
+    props.listingType === 'charter'
+        ? 'Synced charter listings'
+        : 'Synced sale listings',
+);
+
+setLayoutProps({
+    breadcrumbs: [
+        {
+            title: title.value,
+            href: props.listingType === 'charter' ? charterIndex() : index(),
+        },
+    ],
 });
 
 const page = usePage();
@@ -66,7 +78,6 @@ const badges = (copy: Copy): ListingBadge[] => [
                 } as const
             )[copy.status] ?? 'neutral',
     },
-    { label: copy.type },
     ...(copy.is_stale
         ? [{ label: 'Stale', color: 'warning' } satisfies ListingBadge]
         : []),
@@ -74,10 +85,10 @@ const badges = (copy: Copy): ListingBadge[] => [
 </script>
 
 <template>
-    <Head title="Synced listings" />
+    <Head :title="title" />
 
     <ListingIndexShell
-        title="Synced listings"
+        :title="title"
         description="Copies of partners' listings, held with provenance — never re-served as this node's own"
         search-placeholder="Search name or partner domain…"
         :filters="filters"
@@ -114,6 +125,15 @@ const badges = (copy: Copy): ListingBadge[] => [
                 />
             </template>
 
+            <p class="text-sm font-medium">
+                {{
+                    formatListingPrice({
+                        amount: copy.price_amount,
+                        currency: copy.price_currency,
+                        rates: copy.charter_rates,
+                    })
+                }}
+            </p>
             <p class="text-xs text-muted">
                 <template v-if="copy.listing_updated_at">
                     updated {{ copy.listing_updated_at }} ·

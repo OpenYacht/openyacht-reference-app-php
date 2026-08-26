@@ -31,7 +31,7 @@ defineOptions({
     layout: {
         breadcrumbs: [
             {
-                title: 'Our yachts',
+                title: 'Sale yachts',
                 href: index(),
             },
         ],
@@ -63,11 +63,11 @@ const metaLine = (yacht: YachtRow): string =>
 </script>
 
 <template>
-    <Head title="Our yachts" />
+    <Head title="Sale yachts" />
 
     <ListingIndexShell
-        title="Our yachts"
-        description="Listings this node is the authority for"
+        title="Sale yachts"
+        description="Sale listings this node is the authority for"
         search-placeholder="Search name, builder, or model…"
         :filters="filters"
         :categories="categories"

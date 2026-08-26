@@ -2,6 +2,8 @@
 
 use App\Enums\Role;
 use App\Http\Controllers\App\ApiKeyController;
+use App\Http\Controllers\App\CharterYachtController;
+use App\Http\Controllers\App\DashboardController;
 use App\Http\Controllers\App\ImportedYachtController;
 use App\Http\Controllers\App\NodeDirectoryController;
 use App\Http\Controllers\App\PartnerController;
@@ -14,7 +16,7 @@ use Illuminate\Support\Facades\Route;
 Route::inertia('/', 'Welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     Route::get('users', [UserController::class, 'index'])->name('users.index');
     Route::put('users/{user}/role', [UserController::class, 'update'])->name('users.role.update');
@@ -36,7 +38,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('federation/directory/refresh', [NodeDirectoryController::class, 'refresh'])->name('node-directory.refresh');
     Route::post('federation/directory/add-partner', [NodeDirectoryController::class, 'addPartner'])->name('node-directory.add-partner');
 
+    // Synced copies: one list per wire type, never mixed. The detail
+    // page is shared — a single copy renders the same either way.
     Route::get('federation/listings', [SyncedListingController::class, 'index'])->name('synced-listings.index');
+    Route::get('federation/charter-listings', [SyncedListingController::class, 'charterIndex'])->name('synced-charter-listings.index');
     Route::get('federation/listings/{copy}', [SyncedListingController::class, 'show'])->name('synced-listings.show');
 
     Route::get('api-keys', [ApiKeyController::class, 'index'])->name('api-keys.index');
@@ -54,7 +59,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('yachts/{yacht}/media/{media}', [YachtController::class, 'updateMedia'])->name('yachts.media.update');
     Route::delete('yachts/{yacht}/media/{media}', [YachtController::class, 'destroyMedia'])->name('yachts.media.destroy');
 
+    // Sale and charter listings are separate screens, never one filtered
+    // list — the type is chosen by which page creates the listing.
+    Route::get('charter-yachts', [CharterYachtController::class, 'index'])->name('charter-yachts.index');
+    Route::get('charter-yachts/create', [CharterYachtController::class, 'create'])->name('charter-yachts.create');
+    Route::post('charter-yachts', [CharterYachtController::class, 'store'])->name('charter-yachts.store');
+    Route::get('charter-yachts/{charterYacht}/edit', [CharterYachtController::class, 'edit'])->name('charter-yachts.edit');
+    Route::put('charter-yachts/{charterYacht}', [CharterYachtController::class, 'update'])->name('charter-yachts.update');
+    Route::post('charter-yachts/{charterYacht}/transition', [CharterYachtController::class, 'transition'])->name('charter-yachts.transition');
+    Route::post('charter-yachts/{charterYacht}/media', [CharterYachtController::class, 'storeMedia'])->name('charter-yachts.media.store');
+    Route::patch('charter-yachts/{charterYacht}/media/{media}', [CharterYachtController::class, 'updateMedia'])->name('charter-yachts.media.update');
+    Route::delete('charter-yachts/{charterYacht}/media/{media}', [CharterYachtController::class, 'destroyMedia'])->name('charter-yachts.media.destroy');
+
     Route::get('imported-yachts', [ImportedYachtController::class, 'index'])->name('imported-yachts.index');
+    Route::get('imported-charter-yachts', [ImportedYachtController::class, 'charterIndex'])->name('imported-charter-yachts.index');
     Route::get('imported-yachts/{importedYacht}', [ImportedYachtController::class, 'show'])->name('imported-yachts.show');
     Route::post('federation/listings/{copy}/import', [ImportedYachtController::class, 'store'])->name('imported-yachts.store');
     Route::delete('imported-yachts/{importedYacht}', [ImportedYachtController::class, 'destroy'])->name('imported-yachts.destroy');

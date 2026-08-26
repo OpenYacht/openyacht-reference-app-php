@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, router, setLayoutProps, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import ListingCard from '@/components/ListingCard.vue';
 import type { ListingBadge } from '@/components/ListingCard.vue';
 import type { ListingFilters } from '@/components/ListingFilterBar.vue';
 import ListingIndexShell from '@/components/ListingIndexShell.vue';
+import type { CharterRate } from '@/lib/listingPrice';
+import { formatListingPrice } from '@/lib/listingPrice';
+import { index as charterIndex } from '@/routes/imported-charter-yachts';
 import { destroy, index, show } from '@/routes/imported-yachts';
 
 type ImportedYacht = {
@@ -18,6 +22,7 @@ type ImportedYacht = {
     loa_m: number | null;
     price_amount: string | null;
     price_currency: string | null;
+    charter_rates: CharterRate[];
     location_display: string | null;
     attribution_text: string | null;
     authority_domain: string;
@@ -27,21 +32,26 @@ type ImportedYacht = {
     hero: Record<number, string>;
 };
 
-defineProps<{
+const props = defineProps<{
+    listingType: 'sale' | 'charter';
     filters: ListingFilters;
     categories: { slug: string; name: string }[];
     yachts: ImportedYacht[];
 }>();
 
-defineOptions({
-    layout: {
-        breadcrumbs: [
-            {
-                title: 'Imported yachts',
-                href: index(),
-            },
-        ],
-    },
+const title = computed(() =>
+    props.listingType === 'charter'
+        ? 'Imported charter yachts'
+        : 'Imported sale yachts',
+);
+
+setLayoutProps({
+    breadcrumbs: [
+        {
+            title: title.value,
+            href: props.listingType === 'charter' ? charterIndex() : index(),
+        },
+    ],
 });
 
 const page = usePage();
@@ -75,18 +85,6 @@ const metaLine = (yacht: ImportedYacht): string =>
         .filter(Boolean)
         .join(' · ');
 
-const formatPrice = (amount: string | null, currency: string | null) => {
-    if (!amount || !currency) {
-        return 'Price on application';
-    }
-
-    return new Intl.NumberFormat(undefined, {
-        style: 'currency',
-        currency,
-        maximumFractionDigits: 0,
-    }).format(Number(amount));
-};
-
 const removeImport = (yacht: ImportedYacht) => {
     router.delete(destroy.url({ importedYacht: yacht.id }), {
         preserveScroll: true,
@@ -95,10 +93,10 @@ const removeImport = (yacht: ImportedYacht) => {
 </script>
 
 <template>
-    <Head title="Imported yachts" />
+    <Head :title="title" />
 
     <ListingIndexShell
-        title="Imported yachts"
+        :title="title"
         description="Partner listings curated for display — data and media stay in step with the authority"
         search-placeholder="Search name, builder, or model…"
         :filters="filters"
@@ -131,7 +129,13 @@ const removeImport = (yacht: ImportedYacht) => {
             </template>
 
             <p class="text-sm font-medium">
-                {{ formatPrice(yacht.price_amount, yacht.price_currency) }}
+                {{
+                    formatListingPrice({
+                        amount: yacht.price_amount,
+                        currency: yacht.price_currency,
+                        rates: yacht.charter_rates,
+                    })
+                }}
             </p>
             <p v-if="yacht.location_display" class="text-sm text-muted">
                 {{ yacht.location_display }}
