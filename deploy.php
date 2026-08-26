@@ -20,7 +20,7 @@ require 'recipe/laravel.php';
  * {{deploy_path}}/current.
  */
 
-set('repository', 'git@github.com:OpenYacht/reference-app-php.git');
+set('repository', 'git@github.com:OpenYacht/openyacht-reference-app-php.git');
 set('keep_releases', 5);
 
 // storage/ and .env are shared by the Laravel recipe already. The
