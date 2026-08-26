@@ -62,6 +62,44 @@ Production needs the scheduler (hourly sync) and a queue worker (media imports).
 
 Email (password resets, federation alerts) defaults to the `log` mailer. For real delivery set `MAIL_MAILER=brevo` with a `BREVO_API_KEY` (Brevo's HTTP API — no SMTP credentials needed) and a real `MAIL_FROM_ADDRESS`; any other Laravel mail transport works the same way. Federation events needing a human — an unknown node introducing itself (FP-13) and a partner's node UUID changing (FP-11) — are emailed to users holding the *Receive federation notifications* permission (super admins by default; tune it in the roles matrix). After upgrades that add permissions, re-run `php artisan db:seed --class=RoleSeeder` — it is idempotent and keeps super_admin holding every permission without touching a tuned matrix.
 
+## Deployment
+
+Zero-downtime deploys via [Deployer](https://deployer.org) — the committed `deploy.php` is the whole recipe, and this section is the server half. Any small VPS works; a 2-core / 4 GB instance (e.g. Hetzner's entry tier) runs the app, its queue worker, and MySQL comfortably.
+
+Provision once (Ubuntu 24.04, as root — creates the unprivileged `deployer` user the recipe connects as):
+
+```bash
+adduser --disabled-password deployer && su - deployer -c 'mkdir -p ~/.ssh' \
+  && cp ~/.ssh/authorized_keys /home/deployer/.ssh/ && chown -R deployer: /home/deployer/.ssh
+
+add-apt-repository -y ppa:ondrej/php
+apt install -y nginx certbot python3-certbot-nginx mysql-server supervisor git unzip \
+  php8.4-fpm php8.4-cli php8.4-mysql php8.4-sqlite3 php8.4-gd php8.4-curl \
+  php8.4-mbstring php8.4-xml php8.4-zip php8.4-intl php8.4-bcmath
+php8.4 -m | grep -q sodium || echo 'MISSING: sodium (required for Ed25519 signing)'
+
+curl -sS https://getcomposer.org/installer | php8.4 -- --install-dir=/usr/local/bin --filename=composer
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install -y nodejs
+corepack enable && corepack prepare pnpm@latest --activate
+```
+
+Point nginx at `/home/deployer/openyacht/current/public` (standard Laravel vhost, `client_max_body_size 32m` for media uploads), issue TLS with certbot — the identity domain must serve real TLS; partners verify it — and give the queue worker a supervisor program and the scheduler its cron. Both are load-bearing: media imports, federation alert emails, and auto-publish all ride them.
+
+```ini
+; /etc/supervisor/conf.d/openyacht-worker.conf
+[program:openyacht-worker]
+command=php8.4 /home/deployer/openyacht/current/artisan queue:work --sleep=3 --tries=3 --max-time=3600
+user=deployer
+autostart=true
+autorestart=true
+```
+
+```cron
+* * * * * cd /home/deployer/openyacht/current && php8.4 artisan schedule:run >> /dev/null 2>&1
+```
+
+Then, from a checkout: `DEPLOY_HOST=your.domain vendor/bin/dep deploy production`. The first run stops at the missing shared `.env` — create it (`APP_KEY` via `php artisan key:generate --show`, database credentials, the `OPENYACHT_*` identity variables, Brevo mail), deploy again, and inside `current/` run `php artisan db:seed --class=RoleSeeder --force`, `php artisan openyacht:install`, and `php artisan openyacht:create-user` once (deploys migrate but never seed — the role matrix comes from the seeder). Every later deploy is the single `dep deploy` command: it builds assets on the server, migrates, restarts the queue worker, and swaps the `current` symlink atomically.
+
 ## Tests are the conformance story
 
 The Pest suite is grouped by the spec's conformance IDs — the test run *is* the self-certification:

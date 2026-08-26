@@ -56,6 +56,19 @@ test('a synced listing detail page renders from the stored payload with untruste
                     ['url' => 'https://cdn.example/1.jpg', 'thumbnail_url' => 'https://cdn.example/1-thumb.jpg', 'caption' => 'Bow'],
                     ['url' => 'http://cdn.example/2.jpg', 'thumbnail_url' => 'https://cdn.example/2-thumb.jpg', 'caption' => 'Insecure'],
                 ],
+                'layouts' => [
+                    ['url' => 'https://cdn.example/ga.jpg', 'thumbnail_url' => 'https://cdn.example/ga-thumb.jpg', 'caption' => 'GA'],
+                ],
+                'videos' => [
+                    ['url' => 'https://vimeo.com/1', 'caption' => 'Walkthrough'],
+                    ['url' => 'http://vimeo.com/2', 'caption' => 'Insecure'],
+                ],
+                'tours' => [
+                    ['url' => 'https://tour.example/1', 'caption' => null],
+                ],
+                'documents' => [
+                    ['url' => 'https://cdn.example/brochure.pdf', 'caption' => 'Brochure'],
+                ],
             ],
             'usage' => ['display' => true],
         ],
@@ -76,6 +89,13 @@ test('a synced listing detail page renders from the stored payload with untruste
             ->where('copy.gallery.0.url', 'https://cdn.example/1.jpg')
             // The preview grid prefers the authority-served thumbnail (LS-16).
             ->where('copy.gallery.0.thumbnail_url', 'https://cdn.example/1-thumb.jpg')
+            // The beyond-gallery lists render too — https-filtered the
+            // same way (the insecure video is dropped).
+            ->has('copy.remote_media.layouts', 1)
+            ->where('copy.remote_media.layouts.0.thumbnail_url', 'https://cdn.example/ga-thumb.jpg')
+            ->has('copy.remote_media.videos', 1)
+            ->has('copy.remote_media.tours', 1)
+            ->where('copy.remote_media.documents.0.caption', 'Brochure')
             // Descriptions are sanitised before rendering (LS-5).
             ->where('copy.descriptions.0.content', fn ($content): bool => str_contains((string) $content, 'Hello')
                 && ! str_contains((string) $content, '<script')));

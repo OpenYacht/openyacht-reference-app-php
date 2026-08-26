@@ -4,6 +4,7 @@ namespace App\Http\Controllers\App;
 
 use App\Enums\Permission;
 use App\Http\Controllers\Concerns\FiltersListings;
+use App\Http\Controllers\Concerns\PresentsRemoteMedia;
 use App\Http\Controllers\Controller;
 use App\Models\ListingCopy;
 use App\Services\Federation\CategoryVocabulary;
@@ -23,7 +24,7 @@ use Inertia\Response;
  */
 class SyncedListingController extends Controller
 {
-    use FiltersListings;
+    use FiltersListings, PresentsRemoteMedia;
 
     public function index(Request $request, CategoryVocabulary $categories): Response
     {
@@ -159,6 +160,7 @@ class SyncedListingController extends Controller
                         : null)
                     ->filter()
                     ->values(),
+                'remote_media' => $this->remoteMediaProps($payload),
                 'vessel' => data_get($payload, 'vessel'),
                 'specifications' => data_get($payload, 'specifications'),
                 'descriptions' => collect($descriptionSections)
@@ -208,14 +210,5 @@ class SyncedListingController extends Controller
         ]);
 
         return back();
-    }
-
-    /**
-     * Inbound media URLs are untrusted (FP-14): only https URLs are ever
-     * rendered.
-     */
-    private function httpsUrlOrNull(mixed $url): ?string
-    {
-        return is_string($url) && str_starts_with($url, 'https://') ? $url : null;
     }
 }

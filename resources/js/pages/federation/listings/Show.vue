@@ -2,6 +2,8 @@
 import { Head, router, setLayoutProps, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import CharterDetails from '@/components/CharterDetails.vue';
+import RemoteMediaSections from '@/components/RemoteMediaSections.vue';
+import type { RemoteMedia } from '@/components/RemoteMediaSections.vue';
 import type { CharterRate } from '@/lib/listingPrice';
 import { formatListingPrice } from '@/lib/listingPrice';
 import { store as importCopy } from '@/routes/imported-yachts';
@@ -48,6 +50,7 @@ type Copy = {
         thumbnail_url: string | null;
         caption: string | null;
     }[];
+    remote_media: RemoteMedia;
     vessel: Record<string, unknown> | null;
     specifications: Record<string, unknown> | null;
     descriptions: { section: string | null; content: string }[];
@@ -477,6 +480,8 @@ const payloadJson = computed(() => JSON.stringify(props.copy.payload, null, 2));
                 </a>
             </div>
         </section>
+
+        <RemoteMediaSections :media="copy.remote_media" />
 
         <section v-if="copy.brokers.length" class="grid gap-4 sm:grid-cols-2">
             <UCard>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\App;
 
 use App\Enums\Permission;
 use App\Http\Controllers\Concerns\FiltersListings;
+use App\Http\Controllers\Concerns\PresentsRemoteMedia;
 use App\Http\Controllers\Controller;
 use App\Models\ImportedMedia;
 use App\Models\ImportedYacht;
@@ -25,7 +26,7 @@ use InvalidArgumentException;
  */
 class ImportedYachtController extends Controller
 {
-    use FiltersListings;
+    use FiltersListings, PresentsRemoteMedia;
 
     public function index(Request $request, CategoryVocabulary $categories): Response
     {
@@ -141,6 +142,10 @@ class ImportedYachtController extends Controller
                         'caption' => $media->caption,
                         'srcset' => $media->urlsFor(),
                     ]),
+                // Layouts, videos, tours, and documents render from the
+                // copy's verbatim payload — the import pipeline caches only
+                // the profile and gallery images.
+                'remote_media' => $this->remoteMediaProps($payload),
                 'vessel' => data_get($payload, 'vessel'),
                 'specifications' => data_get($payload, 'specifications'),
                 'descriptions' => collect($descriptionSections)

@@ -2,6 +2,8 @@
 import { Head, setLayoutProps } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import CharterDetails from '@/components/CharterDetails.vue';
+import RemoteMediaSections from '@/components/RemoteMediaSections.vue';
+import type { RemoteMedia } from '@/components/RemoteMediaSections.vue';
 import type { CharterRate } from '@/lib/listingPrice';
 import { formatListingPrice } from '@/lib/listingPrice';
 import { index as charterIndex } from '@/routes/imported-charter-yachts';
@@ -41,6 +43,7 @@ type Yacht = {
     is_stale: boolean;
     hero: SrcsetMap;
     gallery: GalleryItem[];
+    remote_media: RemoteMedia;
     vessel: Record<string, unknown> | null;
     specifications: Record<string, unknown> | null;
     descriptions: { section: string | null; content: string }[];
@@ -294,7 +297,10 @@ const payloadJson = computed(() =>
             </article>
         </section>
 
-        <CharterDetails v-if="yacht.type === 'charter'" :charter="yacht.charter" />
+        <CharterDetails
+            v-if="yacht.type === 'charter'"
+            :charter="yacht.charter"
+        />
 
         <section v-if="specRows.length">
             <h3 class="mb-3 text-lg font-semibold">Specifications</h3>
@@ -382,6 +388,8 @@ const payloadJson = computed(() =>
                 />
             </div>
         </section>
+
+        <RemoteMediaSections :media="yacht.remote_media" />
 
         <section
             v-if="yacht.brokers.length || identifiers.length"
