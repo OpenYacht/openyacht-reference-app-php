@@ -34,4 +34,27 @@ enum AcceptancePolicy: string
     {
         return __('federation.acceptance_policies.'.$this->value);
     }
+
+    /**
+     * Permissiveness ordering, for resolving a partner's effective policy
+     * as the most permissive of its own setting and its groups'.
+     */
+    public function permissiveness(): int
+    {
+        return match ($this) {
+            self::Review => 0,
+            self::AcceptComplete => 1,
+            self::AcceptAll => 2,
+        };
+    }
+
+    /**
+     * @param  list<self>  $policies
+     */
+    public static function mostPermissive(array $policies): self
+    {
+        return collect($policies)
+            ->sortByDesc(fn (self $policy): int => $policy->permissiveness())
+            ->first() ?? self::Review;
+    }
 }

@@ -16,12 +16,31 @@ type Group = {
     id: number;
     name: string;
     member_ids: number[];
+    acceptance_policy: string | null;
 };
 
 const props = defineProps<{
     groups: Group[];
     partners: Partner[];
+    acceptancePolicyOptions: { value: string; label: string }[];
 }>();
+
+const NO_POLICY = '__none__';
+
+const policyItems = [
+    { value: NO_POLICY, label: 'No group policy' },
+    ...props.acceptancePolicyOptions,
+];
+
+// Local editable policy per group, mirroring the membership draft.
+const policyDraft = reactive<Record<number, string>>(
+    Object.fromEntries(
+        props.groups.map((group) => [
+            group.id,
+            group.acceptance_policy ?? NO_POLICY,
+        ]),
+    ),
+);
 
 const newName = ref('');
 const creating = ref(false);
@@ -56,11 +75,13 @@ const create = () => {
 
 const save = (group: Group) => {
     savingId.value = group.id;
+    const policy = policyDraft[group.id] ?? NO_POLICY;
     router.put(
         updateGroup.url(group.id),
         {
             name: group.name,
             member_ids: memberDraft[group.id] ?? group.member_ids,
+            acceptance_policy: policy === NO_POLICY ? null : policy,
         },
         {
             preserveScroll: true,
@@ -116,7 +137,7 @@ const remove = (group: Group) => {
                         <UButton
                             size="xs"
                             :loading="savingId === group.id"
-                            label="Save members"
+                            label="Save group"
                             @click="save(group)"
                         />
                         <UButton
@@ -129,6 +150,19 @@ const remove = (group: Group) => {
                         />
                     </div>
                 </div>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <span class="text-xs text-muted">Acceptance policy</span>
+                    <USelect
+                        v-model="policyDraft[group.id]"
+                        :items="policyItems"
+                        size="xs"
+                        class="w-64"
+                    />
+                </div>
+                <p class="mt-1 text-xs text-muted">
+                    A group policy covers every member — the most permissive of
+                    a partner's own setting and its groups' applies.
+                </p>
                 <div class="mt-3 grid gap-1 sm:grid-cols-2">
                     <UCheckbox
                         v-for="partner in partners"

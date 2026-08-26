@@ -21,11 +21,13 @@ type Group = {
     id: number;
     name: string;
     member_ids: number[];
+    acceptance_policy: string | null;
 };
 
 defineProps<{
     partners: Partner[];
     groups: Group[];
+    acceptancePolicyOptions: { value: string; label: string }[];
 }>();
 
 defineOptions({
@@ -134,6 +136,10 @@ const trustColor = (level: string) =>
             fetch its discovery document and store it for your approval.
         </p>
 
-        <PartnerGroupsCard :groups="groups" :partners="partners" />
+        <PartnerGroupsCard
+            :groups="groups"
+            :partners="partners"
+            :acceptance-policy-options="acceptancePolicyOptions"
+        />
     </div>
 </template>

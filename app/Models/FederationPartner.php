@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
@@ -91,6 +92,30 @@ class FederationPartner extends Model
     public function listingCopies(): HasMany
     {
         return $this->hasMany(ListingCopy::class);
+    }
+
+    /**
+     * @return BelongsToMany<PartnerGroup, $this>
+     */
+    public function groups(): BelongsToMany
+    {
+        return $this->belongsToMany(PartnerGroup::class, 'partner_group_members');
+    }
+
+    /**
+     * The acceptance policy that actually applies: the most permissive of
+     * the partner's own setting and its groups'. Group membership is the
+     * grant — putting a partner in a "trusted" group is what loosens its
+     * policy, and removing it is what revokes it; an individual setting
+     * can therefore not be stricter than a group the partner belongs to.
+     */
+    public function effectiveAcceptancePolicy(): AcceptancePolicy
+    {
+        return AcceptancePolicy::mostPermissive([
+            $this->acceptance_policy,
+            ...$this->groups()->whereNotNull('acceptance_policy')->get()
+                ->map(fn (PartnerGroup $group): AcceptancePolicy => $group->acceptance_policy),
+        ]);
     }
 
     /**

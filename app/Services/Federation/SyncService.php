@@ -67,6 +67,11 @@ class SyncService
         $watermark = null;
         $cursor = null;
 
+        // Resolved once per run: the most permissive of the partner's own
+        // setting and its groups' — a "trusted partners" group set to
+        // auto-publish covers every member.
+        $policy = $partner->effectiveAcceptancePolicy();
+
         do {
             $query = array_filter([
                 'page_size' => 100,
@@ -81,7 +86,7 @@ class SyncService
             $page = $response->json();
 
             foreach ($page['data'] ?? [] as $item) {
-                match ($this->apply($partner, $item)) {
+                match ($this->apply($partner, $item, $policy)) {
                     'created' => $created++,
                     'updated' => $updated++,
                     'tombstoned' => $tombstoned++,
@@ -110,7 +115,7 @@ class SyncService
      *
      * @param  array<string, mixed>  $item
      */
-    private function apply(FederationPartner $partner, array $item): string
+    private function apply(FederationPartner $partner, array $item, AcceptancePolicy $policy): string
     {
         $canonicalUri = $item['id'] ?? null;
 
@@ -172,11 +177,40 @@ class SyncService
         // it is also published is the partner's acceptance policy — the
         // spec has no per-listing approval step, and everything after the
         // first accept is already automatic (ID-7).
-        if ($copy->import()->doesntExist() && $this->shouldAutoPublish($partner, $copy)) {
+        if ($copy->import()->doesntExist() && $this->shouldAutoPublish($policy, $copy)) {
             $this->imports->import($copy, auto: true);
         }
 
         return $copy->wasRecentlyCreated ? 'created' : 'updated';
+    }
+
+    /**
+     * Publish every already-synced, still-unimported copy the partner's
+     * effective acceptance policy now allows. Called when a policy
+     * loosens — putting a partner in a trusted group should publish its
+     * queued backlog, not wait for each listing's next upstream change.
+     *
+     * @return int copies published
+     */
+    public function publishEligibleBacklog(FederationPartner $partner): int
+    {
+        $policy = $partner->effectiveAcceptancePolicy();
+        $published = 0;
+
+        $backlog = ListingCopy::query()
+            ->where('federation_partner_id', $partner->id)
+            ->whereNull('tombstoned_at')
+            ->whereDoesntHave('import')
+            ->get();
+
+        foreach ($backlog as $copy) {
+            if ($this->shouldAutoPublish($policy, $copy)) {
+                $this->imports->import($copy, auto: true);
+                $published++;
+            }
+        }
+
+        return $published;
     }
 
     /**
@@ -204,9 +238,9 @@ class SyncService
      * (ID-10), and an unreviewed vessel-identity conflict always reaches
      * a person before the listing reaches a page (ID-9).
      */
-    private function shouldAutoPublish(FederationPartner $partner, ListingCopy $copy): bool
+    private function shouldAutoPublish(AcceptancePolicy $policy, ListingCopy $copy): bool
     {
-        if ($partner->acceptance_policy === AcceptancePolicy::Review) {
+        if ($policy === AcceptancePolicy::Review) {
             return false;
         }
 
@@ -218,7 +252,7 @@ class SyncService
             return false;
         }
 
-        return $partner->acceptance_policy === AcceptancePolicy::AcceptAll
+        return $policy === AcceptancePolicy::AcceptAll
             || $this->passesCompletenessCheck($copy);
     }
 

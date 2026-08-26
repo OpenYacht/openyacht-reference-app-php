@@ -52,6 +52,12 @@ class PartnerController extends Controller
                     'id' => $group->id,
                     'name' => $group->name,
                     'member_ids' => $group->members->modelKeys(),
+                    'acceptance_policy' => $group->acceptance_policy?->value,
+                ]),
+            'acceptancePolicyOptions' => collect(AcceptancePolicy::cases())
+                ->map(fn (AcceptancePolicy $policy): array => [
+                    'value' => $policy->value,
+                    'label' => $policy->label(),
                 ]),
         ]);
     }
@@ -84,6 +90,17 @@ class PartnerController extends Controller
                 // null means every group granted (the pre-grants default).
                 'field_groups' => $partner->field_groups,
                 'acceptance_policy' => $partner->acceptance_policy->value,
+                // Group membership can loosen the effective policy: the
+                // most permissive of the partner's own setting and its
+                // groups' wins.
+                'effective_acceptance_policy' => $partner->effectiveAcceptancePolicy()->value,
+                'policy_groups' => $partner->groups()
+                    ->whereNotNull('acceptance_policy')
+                    ->get()
+                    ->map(fn (PartnerGroup $group): array => [
+                        'name' => $group->name,
+                        'policy_label' => $group->acceptance_policy->label(),
+                    ]),
             ],
             'availableFieldGroups' => collect(FieldGroup::cases())
                 ->map(fn (FieldGroup $group): array => [
@@ -106,7 +123,7 @@ class PartnerController extends Controller
      * queue (unreviewed conflicts, incomplete listings) still reaches a
      * human either way.
      */
-    public function updateAcceptancePolicy(Request $request, FederationPartner $partner): RedirectResponse
+    public function updateAcceptancePolicy(Request $request, FederationPartner $partner, SyncService $sync): RedirectResponse
     {
         Gate::authorize(Permission::ManageFederation->value);
 
@@ -115,6 +132,11 @@ class PartnerController extends Controller
         ]);
 
         $partner->update($validated);
+
+        // A loosened policy publishes the queued backlog immediately —
+        // waiting for each listing's next upstream change would make the
+        // setting look broken.
+        $published = $sync->publishEligibleBacklog($partner);
 
         activity('federation')
             ->causedBy($request->user())
@@ -128,6 +150,7 @@ class PartnerController extends Controller
             'message' => __('federation.acceptance_policy_updated', [
                 'domain' => $partner->domain,
                 'policy' => $partner->acceptance_policy->label(),
+                'published' => $published,
             ]),
         ]);
 

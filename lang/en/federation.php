@@ -49,13 +49,13 @@ return [
         'accept_all' => 'Everything the partner shares publishes automatically (usage terms permitting).',
     ],
 
-    'acceptance_policy_updated' => 'Acceptance policy for :domain set to ":policy".',
+    'acceptance_policy_updated' => 'Acceptance policy for :domain set to ":policy" — :published queued listing(s) published.',
     'conflict_dismissed' => 'Conflict dismissed — both records stay; display is your call.',
 
     'audience_updated' => 'Audience updated — :hidden partner(s) lose visibility, :revealed gain it.',
     'field_groups_updated' => 'Sharing permissions updated for :domain — :refreshed listing(s) will resend on its next poll.',
     'group_created' => 'Group ":name" created.',
-    'group_updated' => 'Group ":name" updated — :hidden (listing, partner) pair(s) lose visibility, :revealed gain it.',
+    'group_updated' => 'Group ":name" updated — :hidden (listing, partner) pair(s) lose visibility, :revealed gain it, :published queued listing(s) published.',
     'group_deleted' => 'Group ":name" deleted.',
 
     'notifications' => [

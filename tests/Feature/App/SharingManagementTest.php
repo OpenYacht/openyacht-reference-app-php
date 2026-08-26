@@ -5,6 +5,7 @@ use App\Enums\FieldGroup;
 use App\Enums\Role;
 use App\Enums\VisibilityTransition;
 use App\Models\FederationPartner;
+use App\Models\ListingCopy;
 use App\Models\PartnerGroup;
 use App\Models\SaleYacht;
 use App\Models\User;
@@ -68,17 +69,45 @@ test('partner groups are managed with the federation permission', function () {
         ->put(route('partner-groups.update', $group), [
             'name' => 'Offices',
             'member_ids' => [$partner->id],
+            'acceptance_policy' => 'accept_all',
         ])
         ->assertRedirect()
         ->assertSessionHasNoErrors();
 
-    expect($group->members()->pluck('federation_partners.id')->all())->toBe([$partner->id]);
+    expect($group->members()->pluck('federation_partners.id')->all())->toBe([$partner->id])
+        ->and($group->refresh()->acceptance_policy?->value)->toBe('accept_all')
+        ->and($partner->refresh()->effectiveAcceptancePolicy()->value)->toBe('accept_all');
 
     $this->actingAs($superAdmin)
         ->delete(route('partner-groups.destroy', $group))
         ->assertRedirect();
 
     expect(PartnerGroup::count())->toBe(0);
+});
+
+test('loosening a policy publishes the queued backlog immediately', function () {
+    $superAdmin = sharingActor(Role::SuperAdmin);
+    $partner = FederationPartner::factory()->verified()->create();
+    $copy = ListingCopy::factory()->create([
+        'federation_partner_id' => $partner->id,
+        'payload' => ['listing' => ['name' => 'QUEUED'], 'usage' => ['display' => true]],
+    ]);
+    $group = PartnerGroup::factory()->create();
+    $group->members()->attach($partner);
+
+    // Setting the trusted group to auto-publish must publish what is
+    // already queued, not wait for each listing's next upstream change.
+    $this->actingAs($superAdmin)
+        ->put(route('partner-groups.update', $group), [
+            'name' => $group->name,
+            'member_ids' => [$partner->id],
+            'acceptance_policy' => 'accept_all',
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect($copy->refresh()->import()->exists())->toBeTrue()
+        ->and($copy->import->auto_published_at)->not->toBeNull();
 });
 
 test('changing partner field-group grants refreshes that partner feed', function () {

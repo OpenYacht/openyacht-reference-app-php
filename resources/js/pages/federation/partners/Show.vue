@@ -36,6 +36,8 @@ type Partner = {
     is_stale: boolean;
     field_groups: string[] | null;
     acceptance_policy: string;
+    effective_acceptance_policy: string;
+    policy_groups: { name: string; policy_label: string }[];
 };
 
 const props = defineProps<{
@@ -289,6 +291,25 @@ const trustColor = (level: string) =>
                         </span>
                     </label>
                 </fieldset>
+                <p
+                    v-if="
+                        partner.effective_acceptance_policy !==
+                        partner.acceptance_policy
+                    "
+                    class="rounded-md border border-info/40 bg-info/5 p-2 text-xs"
+                >
+                    Group membership loosens this partner's effective policy:
+                    <template
+                        v-for="(group, i) in partner.policy_groups"
+                        :key="group.name"
+                    >
+                        <template v-if="i > 0">, </template>
+                        “{{ group.name }}” sets
+                        {{ group.policy_label.toLowerCase() }}
+                    </template>
+                    — the most permissive applies. Remove the partner from the
+                    group to revoke it.
+                </p>
                 <div class="flex justify-end">
                     <UButton
                         label="Save policy"

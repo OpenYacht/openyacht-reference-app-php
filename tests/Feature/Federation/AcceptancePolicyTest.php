@@ -5,6 +5,7 @@ use App\Models\FederationKey;
 use App\Models\FederationPartner;
 use App\Models\ImportedYacht;
 use App\Models\ListingCopy;
+use App\Models\PartnerGroup;
 use App\Models\SaleYacht;
 use App\Models\Vessel;
 use App\Services\Federation\SyncService;
@@ -107,6 +108,67 @@ test('accept_all publishes incomplete listings too; review publishes nothing', f
 
     expect(ListingCopy::count())->toBe(1)
         ->and(ImportedYacht::count())->toBe(0);
+});
+
+test('a trusted group policy covers its members', function () {
+    $partner = acceptanceSync([acceptableItem('uuid-1')], policy: 'review');
+
+    // The partner's own setting holds everything for review…
+    expect(ImportedYacht::count())->toBe(0);
+
+    // …until it joins a group whose policy is auto-publish: membership is
+    // the grant, and the most permissive policy applies.
+    $group = PartnerGroup::factory()->create(['acceptance_policy' => 'accept_complete']);
+    $group->members()->attach($partner);
+    $partner->update(['last_synced_at' => null]);
+
+    app(SyncService::class)->sync($partner->refresh());
+
+    $imported = ImportedYacht::query()->firstOrFail();
+
+    expect($imported->auto_published_at)->not->toBeNull();
+});
+
+test('a group without a policy contributes nothing', function () {
+    $partner = FederationPartner::factory()->verified()->create([
+        'domain' => 'openyacht.partner.example',
+        'acceptance_policy' => 'review',
+    ]);
+    PartnerGroup::factory()->create(['acceptance_policy' => null])->members()->attach($partner);
+
+    Http::fake([
+        'openyacht.partner.example/openyacht/v1/listings?*' => Http::response([
+            'data' => [acceptableItem('uuid-1')],
+            'meta' => ['generated_at' => '2026-08-21T12:00:00Z', 'protocol_version' => '1.0'],
+        ]),
+    ]);
+
+    app(SyncService::class)->sync($partner);
+
+    expect(ImportedYacht::count())->toBe(0)
+        ->and($partner->effectiveAcceptancePolicy())->toBe(AcceptancePolicy::Review);
+});
+
+test('the most permissive of the partner and group policies wins', function () {
+    $partner = FederationPartner::factory()->verified()->create([
+        'domain' => 'openyacht.partner.example',
+        'acceptance_policy' => 'accept_complete',
+    ]);
+    PartnerGroup::factory()->create(['acceptance_policy' => 'accept_all'])->members()->attach($partner);
+
+    // An incomplete listing (no profile image) still publishes: the
+    // group's accept_all outranks the partner's accept_complete.
+    Http::fake([
+        'openyacht.partner.example/openyacht/v1/listings?*' => Http::response([
+            'data' => [acceptableItem('uuid-1', ['media' => ['profile' => null]])],
+            'meta' => ['generated_at' => '2026-08-21T12:00:00Z', 'protocol_version' => '1.0'],
+        ]),
+    ]);
+
+    app(SyncService::class)->sync($partner);
+
+    expect($partner->effectiveAcceptancePolicy())->toBe(AcceptancePolicy::AcceptAll)
+        ->and(ImportedYacht::count())->toBe(1);
 });
 
 test('a hard vessel match against an own listing flags the copy and blocks auto-publish', function () {
