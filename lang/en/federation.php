@@ -22,4 +22,18 @@ return [
 
     'attribution_default' => 'Listing courtesy of :name',
 
+    'notifications' => [
+        'review_partner' => 'Review the partner',
+        'first_contact' => [
+            'subject' => 'New OpenYacht node awaiting approval: :domain',
+            'intro' => 'The node :domain contacted this node for the first time and was recorded as a provisional partner (trust on first use).',
+            'explanation' => 'Provisional partners can deliver signed content but receive no listings until a human approves the partnership.',
+        ],
+        'uuid_changed' => [
+            'subject' => 'OpenYacht partner identity changed: :domain',
+            'intro' => 'The node UUID served by :domain changed, meaning the domain now hosts a different installation. The partner was downgraded to provisional and needs re-approval before it is trusted again.',
+            'explanation' => 'If you were not expecting this (a migration or reinstall on their side), treat it as a possible domain takeover and contact the partner out of band before re-approving.',
+        ],
+    ],
+
 ];

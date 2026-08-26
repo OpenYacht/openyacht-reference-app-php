@@ -1,11 +1,15 @@
 <?php
 
+use App\Enums\Role;
 use App\Enums\TrustLevel;
 use App\Models\FederationPartner;
 use App\Models\SaleYacht;
 use App\Models\User;
+use App\Notifications\PartnerFirstContact;
 use App\Services\Federation\PartnerService;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Spatie\Activitylog\Models\Activity;
 
 const RECEIVER_HOST = 'this-node.example';
@@ -44,7 +48,12 @@ function senderGet(object $test, string $path, ?string $timestamp = null)
     ));
 }
 
-test('first contact from an unknown domain creates a provisional partner', function () {
+test('first contact from an unknown domain creates a provisional partner and notifies subscribed users', function () {
+    Notification::fake();
+    $this->seed(RoleSeeder::class);
+    $subscribed = tap(User::factory()->create(), fn (User $user) => $user->assignRole(Role::SuperAdmin));
+    $unsubscribed = User::factory()->create();
+
     Http::fake([
         SENDER.'/.well-known/openyacht' => Http::response(senderWellKnown($this->keypair)),
     ]);
@@ -58,6 +67,28 @@ test('first contact from an unknown domain creates a provisional partner', funct
     expect($partner)->not->toBeNull()
         ->and($partner->trust_level)->toBe(TrustLevel::Provisional)
         ->and($partner->publishedKeys())->toHaveKey($this->keypair['key_id']);
+
+    // The unsolicited introduction is emailed to holders of the
+    // federation.notifications permission — nobody else.
+    Notification::assertSentTo($subscribed, PartnerFirstContact::class, fn (PartnerFirstContact $notification): bool => $notification->partner->is($partner));
+    Notification::assertNotSentTo($unsubscribed, PartnerFirstContact::class);
+})->group('FP-13');
+
+test('a repeat contact from a known domain sends no first-contact notification', function () {
+    Notification::fake();
+    $this->seed(RoleSeeder::class);
+    tap(User::factory()->create(), fn (User $user) => $user->assignRole(Role::SuperAdmin));
+
+    FederationPartner::factory()->create([
+        'domain' => SENDER,
+        'keys_json' => senderWellKnown($this->keypair)['keys'],
+    ]);
+
+    senderGet($this, '/openyacht/v1/listings')
+        ->assertForbidden()
+        ->assertJsonPath('error.code', 'PARTNER_PROVISIONAL');
+
+    Notification::assertNothingSent();
 })->group('FP-13');
 
 test('an unknown domain with an unreachable well-known document is rejected', function () {

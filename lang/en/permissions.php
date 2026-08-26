@@ -11,5 +11,6 @@ return [
     'contacts.manage_own' => 'Manage own contacts',
     'settings.manage' => 'Manage settings',
     'federation.manage' => 'Manage federation',
+    'federation.notifications' => 'Receive federation notifications',
 
 ];

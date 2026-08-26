@@ -38,6 +38,21 @@ test('the default matrix follows the role scope table', function () {
         ->and($permissionsOf(Role::Viewer))->toBe([]);
 });
 
+test('re-seeding restores every permission to super_admin but preserves tuned roles', function () {
+    RoleModel::findByName(Role::SuperAdmin->value)->syncPermissions([Permission::ManageUsers->value]);
+    RoleModel::findByName(Role::Editor->value)->syncPermissions([Permission::ManageMedia->value]);
+
+    $this->seed(RoleSeeder::class);
+
+    // The invariant that super_admin always holds every permission is how
+    // permissions added after install reach existing installations; the
+    // other roles' tuned matrix survives.
+    expect(RoleModel::findByName(Role::SuperAdmin->value)->permissions->pluck('name')->all())
+        ->toEqualCanonicalizing(array_column(Permission::cases(), 'value'))
+        ->and(RoleModel::findByName(Role::Editor->value)->permissions->pluck('name')->all())
+        ->toBe([Permission::ManageMedia->value]);
+});
+
 test('admins can view the roles page but other roles cannot', function () {
     $this->actingAs(actorWithRole(Role::Admin))
         ->get(route('roles.index'))

@@ -1,11 +1,16 @@
 <?php
 
+use App\Enums\Role;
 use App\Enums\TrustLevel;
 use App\Models\FederationPartner;
 use App\Models\User;
+use App\Notifications\PartnerFirstContact;
+use App\Notifications\PartnerNodeUuidChanged;
 use App\Services\Federation\InvalidWellKnownDocument;
 use App\Services\Federation\PartnerService;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Activity;
 
@@ -93,7 +98,11 @@ test('refreshing keys updates the cache when the node UUID is unchanged', functi
 });
 
 test('a changed node UUID downgrades the partner to provisional and notifies administrators', function () {
+    Notification::fake();
+    $this->seed(RoleSeeder::class);
+
     $approver = User::factory()->create();
+    $subscribed = tap(User::factory()->create(), fn (User $user) => $user->assignRole(Role::SuperAdmin));
     $partner = FederationPartner::factory()->verified()->create([
         'domain' => 'openyacht.partner.example',
         'node_uuid' => '018f0000-0000-7000-8000-000000000001',
@@ -113,7 +122,26 @@ test('a changed node UUID downgrades the partner to provisional and notifies adm
         ->and($partner->approved_by_user_id)->toBeNull();
 
     expect(Activity::query()->where('event', 'partner_uuid_changed')->exists())->toBeTrue();
+
+    Notification::assertSentTo($subscribed, PartnerNodeUuidChanged::class, fn (PartnerNodeUuidChanged $notification): bool => $notification->partner->is($partner));
+    Notification::assertNotSentTo($approver, PartnerNodeUuidChanged::class);
 })->group('FP-11');
+
+test('an operator-initiated add sends no first-contact notification', function () {
+    Notification::fake();
+    $this->seed(RoleSeeder::class);
+    tap(User::factory()->create(), fn (User $user) => $user->assignRole(Role::SuperAdmin));
+
+    Http::fake([
+        'openyacht.partner.example/.well-known/openyacht' => Http::response(wellKnownDocument()),
+    ]);
+
+    app(PartnerService::class)->add('openyacht.partner.example');
+
+    // The operator just did this themselves; only the middleware's
+    // unsolicited inbound introduction is emailed.
+    Notification::assertNotSentTo(User::all(), PartnerFirstContact::class);
+})->group('FP-13');
 
 test('an administrator key refresh moves the pin to the rotated current signing key', function () {
     $admin = User::factory()->create();
@@ -238,6 +266,18 @@ test('the current signing key falls back to the newest created_at when a node or
 
     expect($partner->pinned_key_id)->toBe('ffffffffffffffff');
 })->group('FP-12');
+
+test('the notification mails render the partner domain and a review link', function () {
+    $partner = FederationPartner::factory()->create(['domain' => 'openyacht.partner.example']);
+
+    foreach ([new PartnerFirstContact($partner), new PartnerNodeUuidChanged($partner)] as $notification) {
+        $mail = $notification->toMail(User::factory()->make());
+
+        expect($mail->subject)->toContain('openyacht.partner.example')
+            ->and($mail->actionUrl)->toBe(route('partners.show', $partner))
+            ->and(implode(' ', $mail->introLines))->toContain('openyacht.partner.example');
+    }
+})->group('FP-11', 'FP-13');
 
 test('approving a partner records the approver and verified trust', function () {
     $partner = FederationPartner::factory()->create();

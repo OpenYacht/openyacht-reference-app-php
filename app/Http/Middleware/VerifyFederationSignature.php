@@ -6,6 +6,7 @@ use App\Enums\FederationErrorCode;
 use App\Enums\TrustLevel;
 use App\Http\Responses\FederationErrorResponse;
 use App\Models\FederationPartner;
+use App\Services\Federation\FederationNotifier;
 use App\Services\Federation\InvalidWellKnownDocument;
 use App\Services\Federation\PartnerService;
 use App\Services\Federation\VerificationResult;
@@ -31,6 +32,7 @@ class VerifyFederationSignature
     public function __construct(
         private Verifier $verifier,
         private PartnerService $partners,
+        private FederationNotifier $notifier,
     ) {}
 
     public function handle(Request $request, Closure $next, ?string $mode = null): Response
@@ -55,6 +57,11 @@ class VerifyFederationSignature
             } catch (InvalidWellKnownDocument) {
                 return $this->reject($request, $senderDomain, FederationErrorCode::PartnerUnknown, "Could not fetch the sender's well-known document.");
             }
+
+            // Unlike an operator-initiated add, this is an unsolicited
+            // introduction — the one worth emailing about, since a
+            // provisional partner nobody notices means nobody federating.
+            $this->notifier->partnerFirstContact($partner);
         }
 
         if ($partner->trust_level === TrustLevel::Blocked) {

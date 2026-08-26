@@ -14,7 +14,10 @@ use App\Models\User;
  */
 class PartnerService
 {
-    public function __construct(private WellKnownClient $wellKnown) {}
+    public function __construct(
+        private WellKnownClient $wellKnown,
+        private FederationNotifier $notifier,
+    ) {}
 
     /**
      * Add a partner by domain. Trust on first use: the keys and node UUID
@@ -80,7 +83,9 @@ class PartnerService
                 ->event('partner_uuid_changed')
                 ->log("Node UUID changed for {$partner->domain} — downgraded to provisional pending re-approval");
 
-            return $partner->refresh();
+            $this->notifier->partnerNodeUuidChanged($partner->refresh());
+
+            return $partner;
         }
 
         $partner->update([

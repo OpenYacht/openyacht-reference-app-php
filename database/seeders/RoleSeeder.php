@@ -15,7 +15,11 @@ class RoleSeeder extends Seeder
      * Seed the five-role hierarchy and its default permission matrix.
      * Idempotent: re-running creates nothing twice and only assigns the
      * defaults to roles that have no permissions yet, so an installation's
-     * tuned matrix survives re-seeding.
+     * tuned matrix survives re-seeding. The one exception is super_admin,
+     * whose "always holds every permission" invariant is enforced on every
+     * run — the way permissions added after install reach existing
+     * installations (the role is not editable in the matrix, so there is
+     * no tuning to preserve).
      */
     public function run(): void
     {
@@ -27,6 +31,14 @@ class RoleSeeder extends Seeder
 
         foreach (RoleEnum::cases() as $roleEnum) {
             $role = Role::findOrCreate($roleEnum->value);
+
+            if ($roleEnum === RoleEnum::SuperAdmin) {
+                $role->syncPermissions(
+                    array_column(PermissionEnum::cases(), 'value'),
+                );
+
+                continue;
+            }
 
             if ($role->permissions()->count() === 0) {
                 $role->syncPermissions(

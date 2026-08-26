@@ -41,6 +41,14 @@ enum Permission: string
     case ManageFederation = 'federation.manage';
 
     /**
+     * Receive email alerts for federation events needing a human: an
+     * unknown node introducing itself (FP-13) and a partner's node UUID
+     * changing (FP-11). Recipience is a permission so the matrix decides
+     * who is on call, independent of who may edit federation config.
+     */
+    case ReceiveFederationNotifications = 'federation.notifications';
+
+    /**
      * The translated display label for this permission.
      */
     public function label(): string
