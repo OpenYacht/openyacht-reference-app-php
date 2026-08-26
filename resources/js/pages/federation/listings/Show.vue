@@ -35,7 +35,11 @@ type Copy = {
     location_display: string | null;
     summary: string | null;
     hero_url: string | null;
-    gallery: { url: string; caption: string | null }[];
+    gallery: {
+        url: string;
+        thumbnail_url: string | null;
+        caption: string | null;
+    }[];
     vessel: Record<string, unknown> | null;
     specifications: Record<string, unknown> | null;
     descriptions: { section: string | null; content: string }[];
@@ -384,14 +388,20 @@ const payloadJson = computed(() => JSON.stringify(props.copy.payload, null, 2));
         <section v-if="copy.gallery.length">
             <h3 class="mb-3 text-lg font-semibold">Gallery</h3>
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <img
+                <a
                     v-for="(item, i) in copy.gallery"
                     :key="i"
-                    :src="item.url"
-                    :alt="item.caption ?? copy.name ?? 'Listing image'"
-                    class="aspect-[4/3] w-full rounded-lg object-cover"
-                    loading="lazy"
-                />
+                    :href="item.url"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    <img
+                        :src="item.thumbnail_url ?? item.url"
+                        :alt="item.caption ?? copy.name ?? 'Listing image'"
+                        class="aspect-[4/3] w-full rounded-lg object-cover"
+                        loading="lazy"
+                    />
+                </a>
             </div>
         </section>
 

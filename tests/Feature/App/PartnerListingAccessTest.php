@@ -53,8 +53,8 @@ test('a synced listing detail page renders from the stored payload with untruste
             'media' => [
                 'profile' => ['url' => 'http://insecure.example/hero.jpg'],
                 'gallery' => [
-                    ['url' => 'https://cdn.example/1.jpg', 'caption' => 'Bow'],
-                    ['url' => 'http://cdn.example/2.jpg', 'caption' => 'Insecure'],
+                    ['url' => 'https://cdn.example/1.jpg', 'thumbnail_url' => 'https://cdn.example/1-thumb.jpg', 'caption' => 'Bow'],
+                    ['url' => 'http://cdn.example/2.jpg', 'thumbnail_url' => 'https://cdn.example/2-thumb.jpg', 'caption' => 'Insecure'],
                 ],
             ],
             'usage' => ['display' => true],
@@ -74,6 +74,8 @@ test('a synced listing detail page renders from the stored payload with untruste
             ->where('copy.hero_url', null)
             ->has('copy.gallery', 1)
             ->where('copy.gallery.0.url', 'https://cdn.example/1.jpg')
+            // The preview grid prefers the authority-served thumbnail (LS-16).
+            ->where('copy.gallery.0.thumbnail_url', 'https://cdn.example/1-thumb.jpg')
             // Descriptions are sanitised before rendering (LS-5).
             ->where('copy.descriptions.0.content', fn ($content): bool => str_contains((string) $content, 'Hello')
                 && ! str_contains((string) $content, '<script')));

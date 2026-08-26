@@ -99,10 +99,12 @@ trait FederatedListing
 
     public function registerMediaConversions(?Media $media = null): void
     {
-        // The mandatory authority-served thumbnail of the profile image
-        // (LS-8): ~400-640px on the long edge.
+        // The authority-served thumbnails: mandatory for the profile image
+        // (LS-8), one per gallery image (nullable on the wire; LS-16 —
+        // being a conversion of the stored file, it is a rendition of the
+        // same image by construction). ~400-640px on the long edge.
         $this->addMediaConversion('thumbnail')
-            ->performOnCollections('profile')
+            ->performOnCollections('profile', 'gallery')
             ->nonQueued()
             ->width(640);
     }

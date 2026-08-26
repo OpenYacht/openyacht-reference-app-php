@@ -242,6 +242,41 @@ test('uploaded media carries a content hash and the profile serves a thumbnail',
         ->and($media['profile']['caption'])->toBe('Profile shot');
 })->group('LS-8');
 
+test('gallery items serve a nullable thumbnail that is a rendition of the same image', function () {
+    Storage::fake('public');
+
+    $editor = yachtActor(Role::Editor);
+    $yacht = SaleYacht::factory()->active()->create();
+
+    $this->actingAs($editor)
+        ->post(route('yachts.media.store', $yacht), [
+            'collection' => 'gallery',
+            'file' => UploadedFile::fake()->image('01.jpg', 1600, 900),
+            'caption' => 'Aft deck',
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $partner = FederationPartner::factory()->verified()->create();
+    $serializer = app(ListingSerializer::class);
+    $item = $serializer->serialize($yacht->refresh(), $partner)['media']['gallery'][0];
+    $media = $yacht->getMedia('gallery')->first();
+
+    // LS-16: the thumbnail is a conversion of the gallery file itself — a
+    // rendition of the same image, never a different photograph.
+    expect($item['thumbnail_url'])->toBe($media->getFullUrl('thumbnail'))
+        ->and($item['thumbnail_url'])->not->toBe($item['url']);
+
+    // A gallery image whose conversion has not been generated (media that
+    // predates the thumbnail migration) serves null — no small rendition,
+    // consumers derive from url — never a dead URL.
+    $media->update(['generated_conversions' => []]);
+
+    $item = $serializer->serialize($yacht->refresh(), $partner)['media']['gallery'][0];
+
+    expect($item['thumbnail_url'])->toBeNull();
+})->group('LS-16');
+
 test('deleting media requires ownership of the yacht', function () {
     Storage::fake('public');
 

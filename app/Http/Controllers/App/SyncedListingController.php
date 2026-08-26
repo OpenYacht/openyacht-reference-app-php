@@ -137,10 +137,15 @@ class SyncedListingController extends Controller
                 'location_display' => data_get($payload, 'listing.location.display'),
                 'summary' => data_get($payload, 'listing.summary'),
                 'hero_url' => $this->httpsUrlOrNull(data_get($payload, 'media.profile.url')),
+                // The grid prefers the authority-served thumbnail_url when
+                // present (listing-schema.md §Media, LS-16) — this screen is
+                // the pre-import preview the field exists for; full
+                // resolution stays one click away via url.
                 'gallery' => collect(is_array($gallery) ? $gallery : [])
                     ->map(fn ($item): ?array => is_array($item) && $this->httpsUrlOrNull($item['url'] ?? null) !== null
                         ? [
                             'url' => $item['url'],
+                            'thumbnail_url' => $this->httpsUrlOrNull($item['thumbnail_url'] ?? null),
                             'caption' => is_string($item['caption'] ?? null) ? $item['caption'] : null,
                         ]
                         : null)
