@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AcceptancePolicy;
 use App\Enums\FieldGroup;
 use App\Enums\TrustLevel;
 use Database\Factories\FederationPartnerFactory;
@@ -40,11 +41,22 @@ use Illuminate\Support\Carbon;
     'domain', 'node_name', 'node_uuid', 'keys_json', 'keys_fetched_at', 'pinned_key_id',
     'trust_level', 'field_groups', 'approved_by_user_id', 'last_ok_at',
     'consecutive_failures', 'last_synced_at', 'last_attempted_at',
+    'acceptance_policy',
 ])]
 class FederationPartner extends Model
 {
     /** @use HasFactory<FederationPartnerFactory> */
     use HasFactory;
+
+    /**
+     * The attribute-level twin of the column default: every partner holds
+     * listings for review until an operator loosens the policy.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'acceptance_policy' => 'review',
+    ];
 
     /**
      * Get the attributes that should be cast.
@@ -58,6 +70,7 @@ class FederationPartner extends Model
             'keys_fetched_at' => 'datetime',
             'trust_level' => TrustLevel::class,
             'field_groups' => 'array',
+            'acceptance_policy' => AcceptancePolicy::class,
             'last_ok_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'last_attempted_at' => 'datetime',

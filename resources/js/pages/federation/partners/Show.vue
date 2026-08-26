@@ -9,6 +9,7 @@ import {
     show,
     sync,
 } from '@/routes/partners';
+import { update as updateAcceptancePolicy } from '@/routes/partners/acceptance-policy';
 import { update as updateFieldGroups } from '@/routes/partners/field-groups';
 
 type PartnerKey = {
@@ -34,12 +35,33 @@ type Partner = {
     listing_copies_count: number;
     is_stale: boolean;
     field_groups: string[] | null;
+    acceptance_policy: string;
 };
 
 const props = defineProps<{
     partner: Partner;
     availableFieldGroups: { value: string; label: string }[];
+    availableAcceptancePolicies: {
+        value: string;
+        label: string;
+        hint: string;
+    }[];
 }>();
+
+const acceptancePolicy = ref(props.partner.acceptance_policy);
+const savingPolicy = ref(false);
+
+const saveAcceptancePolicy = () => {
+    savingPolicy.value = true;
+    router.put(
+        updateAcceptancePolicy.url(props.partner.id),
+        { acceptance_policy: acceptancePolicy.value },
+        {
+            preserveScroll: true,
+            onFinish: () => (savingPolicy.value = false),
+        },
+    );
+};
 
 // null means every group granted (the pre-grants default).
 const grantedFieldGroups = ref<string[]>(
@@ -225,6 +247,57 @@ const trustColor = (level: string) =>
                 </ul>
             </UCard>
         </div>
+
+        <UCard>
+            <template #header>
+                <div>
+                    <h3 class="font-semibold">Acceptance policy</h3>
+                    <p class="mt-0.5 text-xs text-muted">
+                        What happens to this partner's listings after sync.
+                        Copies are always stored; this decides whether they also
+                        publish without a person importing each one. Listings
+                        with an unreviewed vessel-identity conflict, or whose
+                        usage terms forbid display, always wait for a human.
+                    </p>
+                </div>
+            </template>
+            <div class="space-y-4">
+                <fieldset class="space-y-2">
+                    <label
+                        v-for="option in availableAcceptancePolicies"
+                        :key="option.value"
+                        class="flex cursor-pointer items-start gap-2 rounded-md border border-default p-3"
+                        :class="{
+                            'border-primary bg-primary/5':
+                                acceptancePolicy === option.value,
+                        }"
+                    >
+                        <input
+                            v-model="acceptancePolicy"
+                            type="radio"
+                            name="acceptance_policy"
+                            :value="option.value"
+                            class="mt-1"
+                        />
+                        <span>
+                            <span class="block text-sm font-medium">{{
+                                option.label
+                            }}</span>
+                            <span class="block text-xs text-muted">{{
+                                option.hint
+                            }}</span>
+                        </span>
+                    </label>
+                </fieldset>
+                <div class="flex justify-end">
+                    <UButton
+                        label="Save policy"
+                        :loading="savingPolicy"
+                        @click="saveAcceptancePolicy"
+                    />
+                </div>
+            </div>
+        </UCard>
 
         <UCard>
             <template #header>

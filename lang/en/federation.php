@@ -37,6 +37,21 @@ return [
         'history' => 'History',
     ],
 
+    'acceptance_policies' => [
+        'review' => 'Review everything',
+        'accept_complete' => 'Auto-publish complete listings',
+        'accept_all' => 'Auto-publish everything',
+    ],
+
+    'acceptance_policy_hints' => [
+        'review' => 'Every synced listing waits in the queue for a person to import it.',
+        'accept_complete' => 'Recommended. Active listings with a profile image, a price (or charter rates), and a length publish automatically; the rest queue for review.',
+        'accept_all' => 'Everything the partner shares publishes automatically (usage terms permitting).',
+    ],
+
+    'acceptance_policy_updated' => 'Acceptance policy for :domain set to ":policy".',
+    'conflict_dismissed' => 'Conflict dismissed — both records stay; display is your call.',
+
     'audience_updated' => 'Audience updated — :hidden partner(s) lose visibility, :revealed gain it.',
     'field_groups_updated' => 'Sharing permissions updated for :domain — :refreshed listing(s) will resend on its next poll.',
     'group_created' => 'Group ":name" created.',

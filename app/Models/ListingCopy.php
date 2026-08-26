@@ -36,7 +36,8 @@ use Illuminate\Support\Carbon;
 #[Fillable([
     'federation_partner_id', 'canonical_uri', 'authority_domain', 'type',
     'status', 'name', 'payload', 'listing_updated_at', 'received_at',
-    'signature_verified', 'tombstoned_at',
+    'signature_verified', 'tombstoned_at', 'identity_conflicts',
+    'conflict_reviewed_at',
 ])]
 class ListingCopy extends Model
 {
@@ -57,7 +58,21 @@ class ListingCopy extends Model
             'received_at' => 'datetime',
             'signature_verified' => 'boolean',
             'tombstoned_at' => 'datetime',
+            'identity_conflicts' => 'array',
+            'conflict_reviewed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * An unreviewed vessel-identity conflict: the flag every auto-publish
+     * path must consult before importing (ID-9 — flagged for human
+     * review, never auto-resolved).
+     */
+    public function hasUnreviewedConflict(): bool
+    {
+        return $this->identity_conflicts !== null
+            && $this->identity_conflicts !== []
+            && $this->conflict_reviewed_at === null;
     }
 
     /**

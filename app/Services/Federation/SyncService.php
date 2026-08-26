@@ -2,6 +2,7 @@
 
 namespace App\Services\Federation;
 
+use App\Enums\AcceptancePolicy;
 use App\Enums\ListingStatus;
 use App\Models\FederationPartner;
 use App\Models\ListingCopy;
@@ -23,6 +24,7 @@ class SyncService
     public function __construct(
         private SignedClient $client,
         private ImportService $imports,
+        private VesselIdentityMatcher $matcher,
     ) {}
 
     /**
@@ -160,10 +162,83 @@ class SyncService
             ],
         );
 
+        $this->reconcileIdentityConflicts($copy);
+
         if (! $copy->wasRecentlyCreated) {
             $this->imports->refresh($copy);
         }
 
+        // Sync is not publication: the copy is always stored, and whether
+        // it is also published is the partner's acceptance policy — the
+        // spec has no per-listing approval step, and everything after the
+        // first accept is already automatic (ID-7).
+        if ($copy->import()->doesntExist() && $this->shouldAutoPublish($partner, $copy)) {
+            $this->imports->import($copy, auto: true);
+        }
+
         return $copy->wasRecentlyCreated ? 'created' : 'updated';
+    }
+
+    /**
+     * Recompute the copy's vessel-identity conflicts. A changed conflict
+     * set invalidates any earlier human review — a new match must reach a
+     * person even if an old one was dismissed (ID-9).
+     */
+    private function reconcileIdentityConflicts(ListingCopy $copy): void
+    {
+        $conflicts = $this->matcher->conflictsFor($copy);
+
+        if ($conflicts === ($copy->identity_conflicts ?? [])) {
+            return;
+        }
+
+        $copy->update([
+            'identity_conflicts' => $conflicts === [] ? null : $conflicts,
+            'conflict_reviewed_at' => null,
+        ]);
+    }
+
+    /**
+     * The acceptance policy, bounded by what stays outside any policy:
+     * usage.display false is a ceiling no local setting can raise
+     * (ID-10), and an unreviewed vessel-identity conflict always reaches
+     * a person before the listing reaches a page (ID-9).
+     */
+    private function shouldAutoPublish(FederationPartner $partner, ListingCopy $copy): bool
+    {
+        if ($partner->acceptance_policy === AcceptancePolicy::Review) {
+            return false;
+        }
+
+        if (data_get($copy->payload, 'usage.display') === false) {
+            return false;
+        }
+
+        if ($copy->hasUnreviewedConflict()) {
+            return false;
+        }
+
+        return $partner->acceptance_policy === AcceptancePolicy::AcceptAll
+            || $this->passesCompletenessCheck($copy);
+    }
+
+    /**
+     * The completeness check behind accept_complete: field-group gating
+     * (LS-14) means a legitimately shared listing can arrive with pricing
+     * withheld, and auto-publishing it puts POA-shaped holes on a public
+     * site. Incomplete listings queue for a person instead; a partner who
+     * shares little sees little published, which is the correct outcome.
+     */
+    private function passesCompletenessCheck(ListingCopy $copy): bool
+    {
+        $payload = $copy->payload ?? [];
+
+        $hasPricing = data_get($payload, 'listing.price.amount') !== null
+            || ($copy->type === 'charter' && data_get($payload, 'charter.rates', []) !== []);
+
+        return $copy->status === ListingStatus::Active
+            && data_get($payload, 'media.profile') !== null
+            && $hasPricing
+            && data_get($payload, 'vessel.loa_m') !== null;
     }
 }

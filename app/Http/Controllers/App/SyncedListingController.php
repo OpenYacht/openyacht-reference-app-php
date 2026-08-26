@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\App;
 
+use App\Enums\Permission;
 use App\Http\Controllers\Concerns\FiltersListings;
 use App\Http\Controllers\Controller;
 use App\Models\ListingCopy;
 use App\Services\Federation\CategoryVocabulary;
 use App\Services\Federation\RichTextSanitizer;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -90,6 +92,7 @@ class SyncedListingController extends Controller
                     'signature_verified' => $copy->signature_verified,
                     'is_stale' => $copy->partner->isStale(),
                     'is_tombstoned' => $copy->tombstoned_at !== null,
+                    'has_conflict' => $copy->hasUnreviewedConflict(),
                     'attribution' => data_get($copy->payload, 'usage.attribution_required') === true
                         ? data_get($copy->payload, 'usage.attribution_text')
                         : null,
@@ -127,6 +130,11 @@ class SyncedListingController extends Controller
                     && data_get($payload, 'usage.display') !== false,
                 'is_stale' => $copy->partner->isStale(),
                 'is_tombstoned' => $copy->tombstoned_at !== null,
+                // ID-9: hard-matched vessels are retained and flagged,
+                // never auto-resolved — dismissing the flag is the human
+                // review the spec requires.
+                'identity_conflicts' => $copy->identity_conflicts ?? [],
+                'conflict_reviewed' => $copy->conflict_reviewed_at !== null,
                 'node_name' => $copy->partner->node_name ?? $copy->authority_domain,
                 'builder_name' => data_get($payload, 'vessel.builder.name'),
                 'model_name' => data_get($payload, 'vessel.model.name'),
@@ -173,6 +181,33 @@ class SyncedListingController extends Controller
                 'payload' => $payload,
             ],
         ]);
+    }
+
+    /**
+     * The human review of a flagged vessel-identity conflict (ID-9): the
+     * conflict itself is never auto-resolved — dismissing records that a
+     * person looked at both records and chose to proceed. A later change
+     * to the conflict set clears the dismissal.
+     */
+    public function dismissConflict(Request $request, ListingCopy $copy): RedirectResponse
+    {
+        Gate::authorize(Permission::ManageListings->value);
+
+        $copy->update(['conflict_reviewed_at' => now()]);
+
+        activity('federation')
+            ->causedBy($request->user())
+            ->performedOn($copy)
+            ->withProperties(['canonical_uri' => $copy->canonical_uri])
+            ->event('conflict_reviewed')
+            ->log("Vessel-identity conflict on {$copy->name} reviewed and dismissed");
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('federation.conflict_dismissed'),
+        ]);
+
+        return back();
     }
 
     /**

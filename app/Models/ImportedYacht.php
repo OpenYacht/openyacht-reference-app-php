@@ -39,7 +39,7 @@ use Illuminate\Support\Carbon;
     'listing_copy_id', 'imported_by_user_id', 'name', 'type', 'status',
     'builder_name', 'model_name', 'year_built', 'loa_m', 'price_amount',
     'price_currency', 'location_display', 'summary', 'attribution_text',
-    'media_synced_at',
+    'media_synced_at', 'auto_published_at',
 ])]
 class ImportedYacht extends Model
 {
@@ -58,6 +58,7 @@ class ImportedYacht extends Model
             'year_built' => 'integer',
             'loa_m' => 'float',
             'media_synced_at' => 'datetime',
+            'auto_published_at' => 'datetime',
         ];
     }
 

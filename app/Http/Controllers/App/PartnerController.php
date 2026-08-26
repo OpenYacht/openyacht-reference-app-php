@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\App;
 
+use App\Enums\AcceptancePolicy;
 use App\Enums\FieldGroup;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
@@ -82,13 +83,55 @@ class PartnerController extends Controller
                 'is_stale' => $partner->isStale(),
                 // null means every group granted (the pre-grants default).
                 'field_groups' => $partner->field_groups,
+                'acceptance_policy' => $partner->acceptance_policy->value,
             ],
             'availableFieldGroups' => collect(FieldGroup::cases())
                 ->map(fn (FieldGroup $group): array => [
                     'value' => $group->value,
                     'label' => __('federation.field_groups.'.$group->value),
                 ]),
+            'availableAcceptancePolicies' => collect(AcceptancePolicy::cases())
+                ->map(fn (AcceptancePolicy $policy): array => [
+                    'value' => $policy->value,
+                    'label' => $policy->label(),
+                    'hint' => __('federation.acceptance_policy_hints.'.$policy->value),
+                ]),
         ]);
+    }
+
+    /**
+     * Change what happens to this partner's listings after sync. Sync
+     * always stores copies; this only decides whether they are also
+     * published without a person clicking per listing — the exception
+     * queue (unreviewed conflicts, incomplete listings) still reaches a
+     * human either way.
+     */
+    public function updateAcceptancePolicy(Request $request, FederationPartner $partner): RedirectResponse
+    {
+        Gate::authorize(Permission::ManageFederation->value);
+
+        $validated = $request->validate([
+            'acceptance_policy' => ['required', Rule::enum(AcceptancePolicy::class)],
+        ]);
+
+        $partner->update($validated);
+
+        activity('federation')
+            ->causedBy($request->user())
+            ->performedOn($partner)
+            ->withProperties(['domain' => $partner->domain, 'acceptance_policy' => $partner->acceptance_policy->value])
+            ->event('acceptance_policy_changed')
+            ->log("Acceptance policy for {$partner->domain} set to {$partner->acceptance_policy->value}");
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('federation.acceptance_policy_updated', [
+                'domain' => $partner->domain,
+                'policy' => $partner->acceptance_policy->label(),
+            ]),
+        ]);
+
+        return back();
     }
 
     /**

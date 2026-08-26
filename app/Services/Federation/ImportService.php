@@ -19,9 +19,12 @@ class ImportService
 {
     /**
      * Import a copy for display. Tombstoned listings and listings whose
-     * usage terms forbid display cannot be imported.
+     * usage terms forbid display cannot be imported. An auto import — the
+     * partner's acceptance policy publishing with no human in the loop —
+     * is stamped so the recently-auto-published feed can surface it for
+     * review after, not before.
      */
-    public function import(ListingCopy $copy, ?User $importedBy = null): ImportedYacht
+    public function import(ListingCopy $copy, ?User $importedBy = null, bool $auto = false): ImportedYacht
     {
         if ($copy->tombstoned_at !== null) {
             throw new InvalidArgumentException('A withdrawn or sold listing cannot be imported.');
@@ -33,8 +36,19 @@ class ImportService
 
         $yacht = ImportedYacht::query()->updateOrCreate(
             ['listing_copy_id' => $copy->id],
-            $this->projection($copy) + ['imported_by_user_id' => $importedBy?->id],
+            $this->projection($copy) + [
+                'imported_by_user_id' => $importedBy?->id,
+                'auto_published_at' => $auto ? now() : null,
+            ],
         );
+
+        if ($auto) {
+            activity('federation')
+                ->performedOn($yacht)
+                ->withProperties(['canonical_uri' => $copy->canonical_uri, 'authority' => $copy->authority_domain])
+                ->event('auto_published')
+                ->log("Auto-published {$yacht->name} from {$copy->authority_domain} per the partner's acceptance policy");
+        }
 
         ImportYachtMedia::dispatch($yacht);
 

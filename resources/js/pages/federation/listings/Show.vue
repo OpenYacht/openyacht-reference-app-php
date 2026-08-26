@@ -5,6 +5,7 @@ import CharterDetails from '@/components/CharterDetails.vue';
 import type { CharterRate } from '@/lib/listingPrice';
 import { formatListingPrice } from '@/lib/listingPrice';
 import { store as importCopy } from '@/routes/imported-yachts';
+import { dismissConflict as dismissConflictRoute } from '@/routes/synced-listings';
 import { index as charterIndex } from '@/routes/synced-charter-listings';
 import { index, show } from '@/routes/synced-listings';
 
@@ -25,6 +26,13 @@ type Copy = {
     importable: boolean;
     is_stale: boolean;
     is_tombstoned: boolean;
+    identity_conflicts: {
+        with: string;
+        matched_on: string;
+        label: string;
+        uuid: string | null;
+    }[];
+    conflict_reviewed: boolean;
     node_name: string;
     builder_name: string | null;
     model_name: string | null;
@@ -74,6 +82,14 @@ const page = usePage();
 
 const doImport = () => {
     router.post(importCopy.url({ copy: props.copy.id }), {});
+};
+
+const dismissConflict = () => {
+    router.post(
+        dismissConflictRoute.url(props.copy.id),
+        {},
+        { preserveScroll: true },
+    );
 };
 
 const subtitle = computed(() =>
@@ -270,6 +286,63 @@ const payloadJson = computed(() => JSON.stringify(props.copy.payload, null, 2));
                     icon="i-lucide-download"
                     label="Import"
                     @click="doImport"
+                />
+            </div>
+        </div>
+
+        <!-- ID-9: hard-matched vessels are retained and flagged, never
+             auto-resolved. Dismissing records the human review; display
+             stays the operator's decision either way. -->
+        <div
+            v-if="copy.identity_conflicts.length"
+            class="rounded-lg border p-4"
+            :class="
+                copy.conflict_reviewed
+                    ? 'border-default bg-elevated/40'
+                    : 'border-error/40 bg-error/5'
+            "
+        >
+            <div
+                class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
+            >
+                <div>
+                    <p class="font-medium">
+                        {{
+                            copy.conflict_reviewed
+                                ? 'Vessel-identity conflict (reviewed)'
+                                : 'Possible duplicate vessel — review needed'
+                        }}
+                    </p>
+                    <ul class="mt-1 space-y-0.5 text-sm text-muted">
+                        <li
+                            v-for="(conflict, i) in copy.identity_conflicts"
+                            :key="i"
+                        >
+                            Matches
+                            {{
+                                conflict.with === 'own'
+                                    ? 'your own listing'
+                                    : 'another partner’s listing'
+                            }}
+                            “{{ conflict.label }}” on
+                            {{
+                                conflict.matched_on === 'vessel_profile'
+                                    ? 'builder, model, year, and length'
+                                    : conflict.matched_on.toUpperCase()
+                            }}
+                        </li>
+                    </ul>
+                </div>
+                <UButton
+                    v-if="
+                        !copy.conflict_reviewed &&
+                        page.props.auth.canManageListings
+                    "
+                    color="neutral"
+                    variant="outline"
+                    size="sm"
+                    label="Dismiss — I reviewed both"
+                    @click="dismissConflict"
                 />
             </div>
         </div>

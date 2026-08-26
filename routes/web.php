@@ -35,6 +35,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('federation/partners/{partner}/refresh-keys', [PartnerController::class, 'refreshKeys'])->name('partners.refresh-keys');
     Route::post('federation/partners/{partner}/sync', [PartnerController::class, 'sync'])->name('partners.sync');
     Route::put('federation/partners/{partner}/field-groups', [PartnerController::class, 'updateFieldGroups'])->name('partners.field-groups.update');
+    Route::put('federation/partners/{partner}/acceptance-policy', [PartnerController::class, 'updateAcceptancePolicy'])->name('partners.acceptance-policy.update');
 
     Route::post('federation/partner-groups', [PartnerGroupController::class, 'store'])->name('partner-groups.store');
     Route::put('federation/partner-groups/{partnerGroup}', [PartnerGroupController::class, 'update'])->name('partner-groups.update');
@@ -49,6 +50,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('federation/listings', [SyncedListingController::class, 'index'])->name('synced-listings.index');
     Route::get('federation/charter-listings', [SyncedListingController::class, 'charterIndex'])->name('synced-charter-listings.index');
     Route::get('federation/listings/{copy}', [SyncedListingController::class, 'show'])->name('synced-listings.show');
+    Route::post('federation/listings/{copy}/dismiss-conflict', [SyncedListingController::class, 'dismissConflict'])->name('synced-listings.dismiss-conflict');
 
     Route::get('api-keys', [ApiKeyController::class, 'index'])->name('api-keys.index');
     Route::post('api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');

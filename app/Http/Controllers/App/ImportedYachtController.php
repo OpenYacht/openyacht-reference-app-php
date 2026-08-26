@@ -89,6 +89,10 @@ class ImportedYachtController extends Controller
                         'attribution_text' => $yacht->attribution_text,
                         'authority_domain' => $yacht->copy->authority_domain,
                         'is_stale' => $yacht->copy->partner->isStale(),
+                        // Review after, not before: policy-published rows
+                        // are badged so an operator can skim what arrived
+                        // with no human in the loop.
+                        'auto_published_at' => $yacht->auto_published_at?->diffForHumans(),
                         'media_synced_at' => $yacht->media_synced_at?->diffForHumans(),
                         'media_count' => $yacht->media->count(),
                         'hero' => $profile instanceof ImportedMedia

@@ -27,6 +27,7 @@ type ImportedYacht = {
     attribution_text: string | null;
     authority_domain: string;
     is_stale: boolean;
+    auto_published_at: string | null;
     media_synced_at: string | null;
     media_count: number;
     hero: Record<number, string>;
@@ -68,6 +69,16 @@ const srcset = (hero: Record<number, string>) =>
         .join(', ');
 
 const badges = (yacht: ImportedYacht): ListingBadge[] => [
+    // Review after, not before: what the acceptance policy published
+    // with no human in the loop is badged for an operator to skim.
+    ...(yacht.auto_published_at
+        ? [
+              {
+                  label: `Auto-published ${yacht.auto_published_at}`,
+                  color: 'info',
+              } satisfies ListingBadge,
+          ]
+        : []),
     ...(yacht.is_stale
         ? [{ label: 'Stale', color: 'warning' } satisfies ListingBadge]
         : []),

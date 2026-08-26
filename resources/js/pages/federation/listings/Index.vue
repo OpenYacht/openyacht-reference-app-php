@@ -29,6 +29,7 @@ type Copy = {
     signature_verified: boolean;
     is_stale: boolean;
     is_tombstoned: boolean;
+    has_conflict: boolean;
     attribution: string | null;
 };
 
@@ -78,6 +79,14 @@ const badges = (copy: Copy): ListingBadge[] => [
                 } as const
             )[copy.status] ?? 'neutral',
     },
+    ...(copy.has_conflict
+        ? [
+              {
+                  label: 'Identity conflict',
+                  color: 'error',
+              } satisfies ListingBadge,
+          ]
+        : []),
     ...(copy.is_stale
         ? [{ label: 'Stale', color: 'warning' } satisfies ListingBadge]
         : []),
