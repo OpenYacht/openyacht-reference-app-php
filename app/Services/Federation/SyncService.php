@@ -222,7 +222,12 @@ class SyncService
     {
         $conflicts = $this->matcher->conflictsFor($copy);
 
-        if ($conflicts === ($copy->identity_conflicts ?? [])) {
+        // Loose comparison on purpose: MySQL's JSON type re-orders object
+        // keys in storage, so a strict === against the freshly computed
+        // set would see a "changed" conflict on every sync and wrongly
+        // reset the human review. == matches key/value pairs regardless
+        // of key order while keeping the list order significant.
+        if ($conflicts == ($copy->identity_conflicts ?? [])) {
             return;
         }
 

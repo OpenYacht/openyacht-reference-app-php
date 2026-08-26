@@ -37,12 +37,15 @@ return new class extends Migration
             $table->timestamps();
         });
 
+        // Composite constraints carry explicit names: the auto-generated
+        // ones exceed MySQL's 64-character identifier limit (a cross-DB
+        // trap SQLite never surfaces — only the tests-mysql lane does).
         Schema::create('partner_group_members', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('partner_group_id')->constrained()->cascadeOnDelete();
             $table->foreignId('federation_partner_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
-            $table->unique(['partner_group_id', 'federation_partner_id']);
+            $table->unique(['partner_group_id', 'federation_partner_id'], 'partner_group_members_unique');
             $table->index('federation_partner_id');
         });
 
@@ -51,7 +54,7 @@ return new class extends Migration
             $table->uuid('listing_uuid');
             $table->foreignId('federation_partner_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
-            $table->unique(['listing_uuid', 'federation_partner_id']);
+            $table->unique(['listing_uuid', 'federation_partner_id'], 'listing_audience_partners_unique');
             $table->index('federation_partner_id');
         });
 
@@ -60,7 +63,7 @@ return new class extends Migration
             $table->uuid('listing_uuid');
             $table->foreignId('partner_group_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
-            $table->unique(['listing_uuid', 'partner_group_id']);
+            $table->unique(['listing_uuid', 'partner_group_id'], 'listing_audience_groups_unique');
             $table->index('partner_group_id');
         });
 
