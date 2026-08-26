@@ -5,8 +5,11 @@ namespace App\Providers;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Symfony\Component\Mailer\Bridge\Brevo\Transport\BrevoTransportFactory;
+use Symfony\Component\Mailer\Transport\Dsn;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,6 +27,14 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // Brevo's HTTP API transport (MAIL_MAILER=brevo); email is optional
+        // for a node, so the default mailer stays log until a key is set.
+        Mail::extend('brevo', function (): mixed {
+            return (new BrevoTransportFactory)->create(
+                new Dsn('brevo+api', 'default', (string) config('services.brevo.key')),
+            );
+        });
     }
 
     /**

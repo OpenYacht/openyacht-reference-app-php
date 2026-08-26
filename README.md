@@ -59,6 +59,8 @@ Then set the node's identity in `.env`:
 
 Production needs the scheduler (hourly sync) and a queue worker (media imports).
 
+Email (password resets etc.) defaults to the `log` mailer. For real delivery set `MAIL_MAILER=brevo` with a `BREVO_API_KEY` (Brevo's HTTP API — no SMTP credentials needed) and a real `MAIL_FROM_ADDRESS`; any other Laravel mail transport works the same way.
+
 ## Tests are the conformance story
 
 The Pest suite is grouped by the spec's conformance IDs — the test run *is* the self-certification:
