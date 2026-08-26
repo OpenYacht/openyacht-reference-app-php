@@ -22,6 +22,27 @@ return [
 
     'attribution_default' => 'Listing courtesy of :name',
 
+    'audiences' => [
+        'everyone' => 'Everyone',
+        'selected' => 'Selected partners',
+        'none' => 'No one',
+    ],
+
+    'field_groups' => [
+        'pricing' => 'Pricing',
+        'location_exact' => 'Exact location',
+        'media_original' => 'Original media',
+        'documents' => 'Documents',
+        'vessel_identifiers' => 'Vessel identifiers',
+        'history' => 'History',
+    ],
+
+    'audience_updated' => 'Audience updated — :hidden partner(s) lose visibility, :revealed gain it.',
+    'field_groups_updated' => 'Sharing permissions updated for :domain — :refreshed listing(s) will resend on its next poll.',
+    'group_created' => 'Group ":name" created.',
+    'group_updated' => 'Group ":name" updated — :hidden (listing, partner) pair(s) lose visibility, :revealed gain it.',
+    'group_deleted' => 'Group ":name" deleted.',
+
     'notifications' => [
         'review_partner' => 'Review the partner',
         'first_contact' => [

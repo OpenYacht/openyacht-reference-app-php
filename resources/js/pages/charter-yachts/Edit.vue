@@ -2,6 +2,7 @@
 import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import CharterYachtForm from '@/components/CharterYachtForm.vue';
+import ListingSharingCard from '@/components/ListingSharingCard.vue';
 import type {
     CrewMemberForm,
     OperatingAreaForm,
@@ -18,6 +19,7 @@ import {
     normalizeCompliance,
 } from '@/components/listing-form/types';
 import { edit, index, transition, update } from '@/routes/charter-yachts';
+import { update as updateAudience } from '@/routes/charter-yachts/audience';
 import {
     destroy as destroyMedia,
     store as storeMedia,
@@ -119,12 +121,21 @@ const hydrateSpecifications = (
     return base;
 };
 
+type Sharing = {
+    audience: string;
+    selected_partner_ids: number[];
+    selected_group_ids: number[];
+    partners: { id: number; domain: string; node_name: string | null }[];
+    groups: { id: number; name: string; members_count: number }[];
+};
+
 const props = defineProps<{
     yacht: Yacht;
     builders: { slug: string; name: string; country: string | null }[];
     categories: { slug: string; name: string }[];
     destinations: { slug: string; name: string; parent: string | null }[];
     map: { provider: 'openstreetmap' | 'mapbox'; mapbox_token: string | null };
+    sharing: Sharing;
 }>();
 
 setLayoutProps({
@@ -435,6 +446,15 @@ const statusColor = (status: string) =>
                 </div>
             </div>
         </section>
+
+        <ListingSharingCard
+            :update-url="updateAudience.url(yacht.id)"
+            :audience="sharing.audience"
+            :selected-partner-ids="sharing.selected_partner_ids"
+            :selected-group-ids="sharing.selected_group_ids"
+            :partners="sharing.partners"
+            :groups="sharing.groups"
+        />
 
         <form class="space-y-6" @submit.prevent="submit">
             <CharterYachtForm

@@ -143,6 +143,32 @@ test('field groups gate the payload server-side', function () {
         ->and($full['vessel']['hin'])->not->toBeNull();
 })->group('LS-14', 'API-5');
 
+test('unknown builder, model, and location serialise as null, not empty objects', function () {
+    SaleYacht::factory()->active()
+        ->for(Vessel::factory()->state([
+            'builder_name' => null,
+            'builder_slug' => null,
+            'model_name' => null,
+        ]))
+        ->create([
+            'location_display' => null,
+            'location_city' => null,
+            'location_state' => null,
+            'location_country' => null,
+            'location_marina' => null,
+            'location_lat' => null,
+            'location_lon' => null,
+        ]);
+
+    $item = signedGet($this, '/openyacht/v1/listings')->json('data.0');
+
+    // The schema's vocab def anchors on a non-null name and the location
+    // def on a non-null display: absent data is null, never {name: null}.
+    expect($item['vessel']['builder'])->toBeNull()
+        ->and($item['vessel']['model'])->toBeNull()
+        ->and($item['listing']['location'])->toBeNull();
+})->group('LS-1');
+
 test('a listing with no imagery has a null profile, never a placeholder', function () {
     SaleYacht::factory()->active()->create();
 

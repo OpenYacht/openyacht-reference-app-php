@@ -3,9 +3,11 @@
 namespace App\Services\Federation;
 
 use App\Enums\FieldGroup;
+use App\Enums\ListingStatus;
 use App\Models\CharterYacht;
 use App\Models\FederationPartner;
 use App\Models\SaleYacht;
+use Carbon\CarbonInterface;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
@@ -80,16 +82,18 @@ class ListingSerializer
     /**
      * The tombstone form: served in updated_since results for every
      * listing that became invisible to the requesting partner (API-3).
+     * An unshared listing tombstones as withdrawn at the transition time —
+     * indistinguishable from a real withdrawal (no information leak).
      *
      * @return array<string, mixed>
      */
-    public function tombstone(SaleYacht|CharterYacht $yacht): array
+    public function tombstone(SaleYacht|CharterYacht $yacht, ?ListingStatus $statusOverride = null, ?CarbonInterface $updatedAtOverride = null): array
     {
         return [
             'id' => $yacht->canonicalUri(),
             'tombstone' => true,
-            'status' => $yacht->status->value,
-            'updated_at' => $yacht->federation_updated_at?->utc()->format('Y-m-d\TH:i:s\Z'),
+            'status' => ($statusOverride ?? $yacht->status)->value,
+            'updated_at' => ($updatedAtOverride ?? $yacht->federation_updated_at)?->utc()->format('Y-m-d\TH:i:s\Z'),
         ];
     }
 
@@ -105,8 +109,10 @@ class ListingSerializer
             'imo' => $identifiersGranted ? $vessel->imo : null,
             'mmsi' => $identifiersGranted ? $vessel->mmsi : null,
             'official_number' => $identifiersGranted ? $vessel->official_number : null,
-            'builder' => ['name' => $vessel->builder_name, 'slug' => $vessel->builder_slug],
-            'model' => ['name' => $vessel->model_name, 'slug' => $vessel->model_slug],
+            // The schema wants null, not {name: null}, when unknown — the
+            // vocab def anchors on a non-null name.
+            'builder' => $vessel->builder_name === null ? null : ['name' => $vessel->builder_name, 'slug' => $vessel->builder_slug],
+            'model' => $vessel->model_name === null ? null : ['name' => $vessel->model_name, 'slug' => $vessel->model_slug],
             'year_built' => $vessel->year_built,
             'refit_year' => $vessel->refit_year,
             'loa_m' => $vessel->loa_m,
@@ -145,16 +151,7 @@ class ListingSerializer
                     ->values()
                     ->all()
                 : [],
-            'location' => [
-                'display' => $yacht->location_display,
-                'city' => $yacht->location_city,
-                'state' => $yacht->location_state,
-                'country' => $yacht->location_country,
-                'marina' => $locationGranted ? $yacht->location_marina : null,
-                'coordinates' => $locationGranted && $yacht->location_lat !== null && $yacht->location_lon !== null
-                    ? ['lat' => $yacht->location_lat, 'lon' => $yacht->location_lon]
-                    : null,
-            ],
+            'location' => $this->location($yacht, $locationGranted),
             'brokers' => $yacht->assignedBroker === null ? [] : [[
                 'name' => $yacht->assignedBroker->name,
                 'title' => null,
@@ -162,6 +159,37 @@ class ListingSerializer
                 'phone' => null,
                 'photo_url' => null,
             ]],
+        ];
+    }
+
+    /**
+     * The schema wants location: null when the node has no location data
+     * at all; when any field is set the object is emitted (and the schema
+     * then demands the non-null display anchor rather than data being
+     * silently dropped).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function location(SaleYacht|CharterYacht $yacht, bool $locationGranted): ?array
+    {
+        $hasAny = $yacht->location_display !== null || $yacht->location_city !== null
+            || $yacht->location_state !== null || $yacht->location_country !== null
+            || $yacht->location_marina !== null
+            || ($yacht->location_lat !== null && $yacht->location_lon !== null);
+
+        if (! $hasAny) {
+            return null;
+        }
+
+        return [
+            'display' => $yacht->location_display,
+            'city' => $yacht->location_city,
+            'state' => $yacht->location_state,
+            'country' => $yacht->location_country,
+            'marina' => $locationGranted ? $yacht->location_marina : null,
+            'coordinates' => $locationGranted && $yacht->location_lat !== null && $yacht->location_lon !== null
+                ? ['lat' => $yacht->location_lat, 'lon' => $yacht->location_lon]
+                : null,
         ];
     }
 

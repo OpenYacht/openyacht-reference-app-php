@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Audience;
 use App\Enums\ListingStatus;
 use App\Models\Concerns\FederatedListing;
 use Carbon\CarbonInterface;
@@ -48,6 +49,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property array<int, array{section: string|null, content: string}>|null $descriptions
  * @property array<int, array{category: string|null, name: string, slug: string|null}>|null $features
  * @property array<string, mixed>|null $compliance
+ * @property Audience $audience
  * @property CarbonInterface|null $listed_at
  * @property CarbonInterface|null $federation_updated_at
  * @property Carbon|null $created_at

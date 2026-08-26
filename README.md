@@ -12,6 +12,7 @@ This app is reference material first, installable product second. It exists so a
 - Ed25519 request signing and verification (passes the spec's signing test vectors byte-for-byte), key rotation (`openyacht:key:rotate` — routine, emergency, and post-overlap retirement)
 - `/.well-known/openyacht`, capabilities, health, and the listings endpoints with keyset cursors, `updated_since` incremental sync, tombstones, and per-partner field-group gating
 - Listing lifecycle (`draft → active ⇄ under_offer → sold | withdrawn`) with canonical URIs minted once and terminal listings dereferenceable through the retention window
+- **Per-listing, per-partner sharing**: each listing's audience is everyone, selected partners/groups, or no one; per-partner field-group grants re-gate payloads server-side. Every visibility change lands in an append-only event log the feed replays against any `updated_since` watermark — unsharing surfaces as a tombstone indistinguishable from a real withdrawal, re-sharing as a normal update, and a grants change resends re-gated payloads on the partner's next poll. Partner groups are the audience shorthand; membership changes replay through the same log without touching any listing
 
 **Consumer role**
 - Trust-on-first-use partner establishment, signed sync (`openyacht:sync`, scheduled hourly), verbatim copies stored with provenance and never re-served
@@ -30,7 +31,7 @@ The optional protocol features this node's capabilities endpoint honestly advert
 
 - **Subscriptions (push)** — signed webhook delivery of changes (`POST /openyacht/v1/subscriptions`). Polling `updated_since` is the mandatory baseline and is fully implemented; push is the optional layer on top.
 
-Also pending: an import connector for an incumbent feed, per-partner sharing-rules UI, an installation wizard, and signed URLs for the `media_original` field group.
+Also pending: an import connector for an incumbent feed, an installation wizard, and signed URLs for the `media_original` field group.
 
 ## Requirements
 

@@ -2,7 +2,11 @@
 
 namespace App\Models\Concerns;
 
+use App\Enums\Audience;
 use App\Enums\ListingStatus;
+use App\Models\FederationPartner;
+use App\Models\PartnerGroup;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -36,8 +40,61 @@ trait FederatedListing
                 throw new InvalidArgumentException('The canonical UUID never changes for the life of the listing.');
             }
 
+            // An audience change alone never moves the wire timestamp:
+            // stamping would resend the listing to every partner, when only
+            // the affected partners' views changed — the visibility-event
+            // log lifts exactly those partners' effective timestamps
+            // (SharingService).
+            if (array_keys($yacht->getDirty()) === ['audience']) {
+                return;
+            }
+
             $yacht->federation_updated_at = now();
         });
+    }
+
+    protected function initializeFederatedListing(): void
+    {
+        $this->mergeCasts(['audience' => Audience::class]);
+
+        // The attribute-level twin of the column default, so a freshly
+        // constructed model answers audience questions before its row is
+        // ever re-read.
+        $this->attributes['audience'] ??= Audience::Everyone->value;
+    }
+
+    /**
+     * The individually selected partners of a selected audience, keyed by
+     * the canonical UUID (row ids collide across the two listing tables;
+     * UUIDs never do).
+     *
+     * @return BelongsToMany<FederationPartner, $this>
+     */
+    public function audiencePartners(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            FederationPartner::class,
+            'listing_audience_partners',
+            'listing_uuid',
+            'federation_partner_id',
+            'uuid',
+        );
+    }
+
+    /**
+     * The selected partner groups of a selected audience.
+     *
+     * @return BelongsToMany<PartnerGroup, $this>
+     */
+    public function audienceGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            PartnerGroup::class,
+            'listing_audience_groups',
+            'listing_uuid',
+            'partner_group_id',
+            'uuid',
+        );
     }
 
     /**

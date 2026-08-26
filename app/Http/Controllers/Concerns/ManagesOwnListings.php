@@ -2,15 +2,21 @@
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Enums\Audience;
 use App\Models\CharterYacht;
+use App\Models\FederationPartner;
+use App\Models\PartnerGroup;
 use App\Models\SaleYacht;
 use App\Services\Federation\BuilderRegistry;
 use App\Services\Federation\CategoryVocabulary;
 use App\Services\Federation\RichTextSanitizer;
+use App\Services\Federation\SharingService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
@@ -42,6 +48,75 @@ trait ManagesOwnListings
             'provider' => $provider === 'mapbox' ? 'mapbox' : 'openstreetmap',
             'mapbox_token' => $provider === 'mapbox' ? $token : null,
         ];
+    }
+
+    /**
+     * The sharing card's props for an edit page: the listing's current
+     * audience and selections, and every partner and group it could
+     * select. Editing the audience is part of editing the listing —
+     * per-partner grants and groups stay federation configuration.
+     *
+     * @return array<string, mixed>
+     */
+    protected function audienceProps(SaleYacht|CharterYacht $yacht): array
+    {
+        return [
+            'audience' => $yacht->audience->value,
+            'selected_partner_ids' => $yacht->audiencePartners()->pluck('federation_partners.id'),
+            'selected_group_ids' => $yacht->audienceGroups()->pluck('partner_groups.id'),
+            'partners' => FederationPartner::query()
+                ->orderBy('domain')
+                ->get()
+                ->map(fn (FederationPartner $partner): array => [
+                    'id' => $partner->id,
+                    'domain' => $partner->domain,
+                    'node_name' => $partner->node_name,
+                ]),
+            'groups' => PartnerGroup::query()
+                ->withCount('members')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (PartnerGroup $group): array => [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    'members_count' => $group->members_count,
+                ]),
+        ];
+    }
+
+    /**
+     * Change the listing's audience through the sharing service, which
+     * records a visibility transition for every partner whose view
+     * changed — the feed replays those as tombstones and reappearances.
+     */
+    protected function updateListingAudience(Request $request, SaleYacht|CharterYacht $yacht, SharingService $sharing): RedirectResponse
+    {
+        Gate::authorize('update', $yacht);
+
+        $validated = $request->validate([
+            'audience' => ['required', Rule::enum(Audience::class)],
+            'partner_ids' => ['array'],
+            'partner_ids.*' => ['integer', Rule::exists('federation_partners', 'id')],
+            'group_ids' => ['array'],
+            'group_ids.*' => ['integer', Rule::exists('partner_groups', 'id')],
+        ]);
+
+        $result = $sharing->setAudience(
+            $yacht,
+            Audience::from($validated['audience']),
+            $validated['partner_ids'] ?? [],
+            $validated['group_ids'] ?? [],
+        );
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('federation.audience_updated', [
+                'hidden' => $result['hidden'],
+                'revealed' => $result['revealed'],
+            ]),
+        ]);
+
+        return back();
     }
 
     protected function storeListingMedia(Request $request, SaleYacht|CharterYacht $yacht): RedirectResponse

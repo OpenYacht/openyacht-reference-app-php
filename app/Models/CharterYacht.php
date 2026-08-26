@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Audience;
 use App\Enums\ListingStatus;
 use App\Models\Concerns\FederatedListing;
 use Carbon\CarbonInterface;
@@ -52,6 +53,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property string|null $winter_base_port
  * @property array<int, array<string, mixed>>|null $crew
  * @property CarbonInterface|null $crew_attested_at
+ * @property Audience $audience
  * @property CarbonInterface|null $listed_at
  * @property CarbonInterface|null $federation_updated_at
  * @property Carbon|null $created_at

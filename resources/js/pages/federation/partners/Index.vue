@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Form, Head, Link } from '@inertiajs/vue3';
 import Heading from '@/components/Heading.vue';
+import PartnerGroupsCard from '@/components/PartnerGroupsCard.vue';
 import { index as directoryIndex } from '@/routes/node-directory';
 import { index, show, store } from '@/routes/partners';
 
@@ -16,8 +17,15 @@ type Partner = {
     is_stale: boolean;
 };
 
+type Group = {
+    id: number;
+    name: string;
+    member_ids: number[];
+};
+
 defineProps<{
     partners: Partner[];
+    groups: Group[];
 }>();
 
 defineOptions({
@@ -125,5 +133,7 @@ const trustColor = (level: string) =>
             No partners yet. Add one by its identity domain — the node will
             fetch its discovery document and store it for your approval.
         </p>
+
+        <PartnerGroupsCard :groups="groups" :partners="partners" />
     </div>
 </template>

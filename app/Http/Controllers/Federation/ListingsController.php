@@ -11,29 +11,37 @@ use App\Models\FederationPartner;
 use App\Models\SaleYacht;
 use App\Services\Federation\ListingCursor;
 use App\Services\Federation\ListingSerializer;
+use App\Services\Federation\SharingService;
 use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Serves this node's own listings to verified partners. Copies of other
  * nodes' listings live in their own table and are never served from here
  * (ID-4); drafts are never distributed (LS-7); updated_since results
- * include tombstones for every listing that became invisible (API-3).
+ * include tombstones for every listing that became invisible (API-3) —
+ * whether it ended or was unshared, indistinguishably.
  *
  * Sale and charter listings live in separate tables (the table is the
  * type) but share one wire feed: the same constraints run against both
- * tables and the two result sets merge on (federation_updated_at, uuid) —
- * the cursor's keyset — so a delta poll walks one consistent sequence
- * across both types. Two lean indexed queries per page, no joins.
+ * tables and the two result sets merge on (effective_updated_at, uuid) —
+ * the cursor's keyset. The effective timestamp is
+ * GREATEST(federation_updated_at, latest visibility event) per partner:
+ * sharing transitions move a listing past any partner's watermark
+ * without re-serving it to everyone else.
  *
  * // api-design.md §Listings
+ * // wordpress-plugin-notes.md §Granular sharing
  */
 class ListingsController extends Controller
 {
+    private const EPOCH = '1000-01-01 00:00:00';
+
     public function index(Request $request, ListingSerializer $serializer): JsonResponse
     {
         /** @var FederationPartner $partner */
@@ -56,31 +64,47 @@ class ListingsController extends Controller
 
         $cursor = ListingCursor::decode($request->query('cursor'));
 
-        $fetch = function (Builder $query) use ($updatedSince, $cursor, $pageSize): Collection {
+        $fetch = function (Builder $query) use ($partner, $updatedSince, $cursor, $pageSize): Collection {
+            $table = $query->getModel()->getTable();
+            $visible = $this->visibleSql($table);
+            $effective = $this->effectiveSql($table);
+
             $query
-                ->where('status', '!=', ListingStatus::Draft)
-                ->orderBy('federation_updated_at')
-                ->orderBy('uuid');
+                ->select("{$table}.*")
+                ->selectRaw("{$visible} as visible_now", [$partner->id, $partner->id])
+                ->selectRaw("{$effective} as effective_updated_at")
+                ->selectRaw('ev.event as last_event')
+                ->leftJoinSub($this->latestEventPerListing($partner), 'ev', 'ev.listing_uuid', '=', "{$table}.uuid")
+                ->where("{$table}.status", '!=', ListingStatus::Draft)
+                ->orderByRaw("{$effective}")
+                ->orderBy("{$table}.uuid");
 
             if ($updatedSince !== null) {
                 // Everything whose federation-visible state changed at or
-                // after the timestamp — including listings that became
-                // invisible, which appear below as tombstones (API-3).
-                $query->where('federation_updated_at', '>=', $updatedSince);
+                // after the timestamp for THIS partner — content changes,
+                // grant refreshes, and listings that became invisible,
+                // which appear below as tombstones (API-3). The
+                // invisible branch keys on the hidden event specifically:
+                // refreshed rows serialise as normal listings.
+                $since = $updatedSince->utc()->format('Y-m-d H:i:s');
+                $query->whereRaw(
+                    "(({$visible} AND {$effective} >= ?) OR (NOT {$visible} AND ev.event = 'hidden' AND ev.occurred_at >= ?))",
+                    [$partner->id, $partner->id, $since, $partner->id, $partner->id, $since],
+                );
             } else {
                 // Cold sync: the currently visible inventory only; terminal
                 // listings remain dereferenceable at their canonical URIs.
-                $query->whereIn('status', [ListingStatus::Active, ListingStatus::UnderOffer]);
+                $query
+                    ->whereRaw($visible, [$partner->id, $partner->id])
+                    ->whereIn("{$table}.status", [ListingStatus::Active, ListingStatus::UnderOffer]);
             }
 
             if ($cursor !== null) {
-                $query->where(function ($outer) use ($cursor): void {
-                    $outer->where('federation_updated_at', '>', $cursor['updated_at'])
-                        ->orWhere(function ($inner) use ($cursor): void {
-                            $inner->where('federation_updated_at', $cursor['updated_at'])
-                                ->where('uuid', '>', $cursor['uuid']);
-                        });
-                });
+                $position = $cursor['updated_at']->utc()->format('Y-m-d H:i:s');
+                $query->whereRaw(
+                    "({$effective} > ? OR ({$effective} = ? AND {$table}.uuid > ?))",
+                    [$position, $position, $cursor['uuid']],
+                );
             }
 
             return $query->limit($pageSize + 1)->get();
@@ -88,7 +112,7 @@ class ListingsController extends Controller
 
         $merged = $fetch(SaleYacht::query()->with(['vessel', 'assignedBroker', 'priceHistory', 'media']))
             ->concat($fetch(CharterYacht::query()->with(['vessel', 'assignedBroker', 'media'])))
-            ->sortBy(fn (SaleYacht|CharterYacht $yacht): string => $yacht->federation_updated_at->utc()->format('Y-m-d H:i:s').'|'.$yacht->uuid)
+            ->sortBy(fn (SaleYacht|CharterYacht $yacht): string => $yacht->effective_updated_at.'|'.$yacht->uuid)
             ->values();
 
         $hasMore = $merged->count() > $pageSize;
@@ -102,16 +126,28 @@ class ListingsController extends Controller
         if ($hasMore) {
             $last = $page->last();
             $meta['next_cursor'] = ListingCursor::encode([
-                'updated_at' => $last->federation_updated_at->utc()->toIso8601String(),
+                'updated_at' => Carbon::parse($last->effective_updated_at, 'UTC')->toIso8601String(),
                 'uuid' => $last->uuid,
             ]);
         }
 
         return response()->json([
             'data' => $page
-                ->map(fn (SaleYacht|CharterYacht $yacht): array => $yacht->status->isTerminal()
-                    ? $serializer->tombstone($yacht)
-                    : $serializer->serialize($yacht, $partner))
+                ->map(function (SaleYacht|CharterYacht $yacht) use ($serializer, $partner): array {
+                    if (! $yacht->visible_now) {
+                        // Unshared: a tombstone indistinguishable from a
+                        // real withdrawal, timestamped at the transition.
+                        return $serializer->tombstone(
+                            $yacht,
+                            $yacht->status->isTerminal() ? null : ListingStatus::Withdrawn,
+                            Carbon::parse($yacht->effective_updated_at, 'UTC'),
+                        );
+                    }
+
+                    return $yacht->status->isTerminal()
+                        ? $serializer->tombstone($yacht)
+                        : $serializer->serialize($yacht, $partner);
+                })
                 ->values(),
             'meta' => $meta,
         ]);
@@ -121,7 +157,7 @@ class ListingsController extends Controller
      * The dereference target for canonical URIs. Terminal listings stay
      * served (with status) for the retention window, then 410 Gone.
      */
-    public function show(Request $request, string $uuid, ListingSerializer $serializer): JsonResponse
+    public function show(Request $request, string $uuid, ListingSerializer $serializer, SharingService $sharing): JsonResponse
     {
         /** @var FederationPartner $partner */
         $partner = $request->attributes->get('openyacht_partner');
@@ -137,8 +173,12 @@ class ListingsController extends Controller
                 ->where('uuid', $uuid)
                 ->first();
 
-        // Drafts are never distributed — and never revealed (LS-7).
-        if ($yacht === null || $yacht->status === ListingStatus::Draft) {
+        // Drafts are never distributed — and never revealed (LS-7). A
+        // listing not shared with this partner is equally NOT_FOUND: the
+        // same response as for a listing that does not exist (no leak).
+        if ($yacht === null
+            || $yacht->status === ListingStatus::Draft
+            || ! $sharing->isVisibleTo($yacht, $partner)) {
             return FederationErrorResponse::make(FederationErrorCode::NotFound, 'No such listing.');
         }
 
@@ -150,5 +190,47 @@ class ListingsController extends Controller
         }
 
         return response()->json($serializer->serialize($yacht, $partner));
+    }
+
+    /**
+     * The requesting partner's latest visibility event per listing, as a
+     * joinable derived table (listing_uuid, event, occurred_at).
+     */
+    private function latestEventPerListing(FederationPartner $partner): \Illuminate\Database\Query\Builder
+    {
+        $latestIds = DB::table('visibility_events')
+            ->selectRaw('listing_uuid, MAX(id) as max_id')
+            ->where('federation_partner_id', $partner->id)
+            ->groupBy('listing_uuid');
+
+        return DB::table('visibility_events as e')
+            ->joinSub($latestIds, 'latest', 'latest.max_id', '=', 'e.id')
+            ->select(['e.listing_uuid', 'e.event', 'e.occurred_at']);
+    }
+
+    /**
+     * The SQL mirror of SharingService::isVisibleTo() — a selected
+     * audience is the union of individually selected partners and members
+     * of selected groups. Two positional bindings (partner id, twice).
+     * The two implementations must stay mirrored.
+     */
+    private function visibleSql(string $table): string
+    {
+        return "({$table}.audience = 'everyone' OR ({$table}.audience = 'selected' AND ("
+            ."EXISTS (SELECT 1 FROM listing_audience_partners a WHERE a.listing_uuid = {$table}.uuid AND a.federation_partner_id = ?)"
+            .' OR EXISTS (SELECT 1 FROM listing_audience_groups ag INNER JOIN partner_group_members gm ON gm.partner_group_id = ag.partner_group_id'
+            ." WHERE ag.listing_uuid = {$table}.uuid AND gm.federation_partner_id = ?)"
+            .')))';
+    }
+
+    /**
+     * GREATEST(federation_updated_at, latest event) as a portable CASE —
+     * GREATEST() does not exist on SQLite. Timestamps compare as
+     * 'Y-m-d H:i:s' strings, which orders correctly on every engine.
+     */
+    private function effectiveSql(string $table): string
+    {
+        return "(CASE WHEN COALESCE(ev.occurred_at, '".self::EPOCH."') > {$table}.federation_updated_at"
+            ." THEN ev.occurred_at ELSE {$table}.federation_updated_at END)";
     }
 }

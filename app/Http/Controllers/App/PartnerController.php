@@ -2,16 +2,20 @@
 
 namespace App\Http\Controllers\App;
 
+use App\Enums\FieldGroup;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AddPartnerRequest;
 use App\Models\FederationPartner;
+use App\Models\PartnerGroup;
 use App\Services\Federation\InvalidWellKnownDocument;
 use App\Services\Federation\PartnerService;
+use App\Services\Federation\SharingService;
 use App\Services\Federation\SyncService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -38,6 +42,15 @@ class PartnerController extends Controller
                     'last_synced_at' => $partner->last_synced_at?->diffForHumans(),
                     'consecutive_failures' => $partner->consecutive_failures,
                     'is_stale' => $partner->isStale(),
+                ]),
+            'groups' => PartnerGroup::query()
+                ->with('members:id,domain,node_name')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (PartnerGroup $group): array => [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    'member_ids' => $group->members->modelKeys(),
                 ]),
         ]);
     }
@@ -67,8 +80,44 @@ class PartnerController extends Controller
                 'consecutive_failures' => $partner->consecutive_failures,
                 'listing_copies_count' => $partner->listingCopies()->count(),
                 'is_stale' => $partner->isStale(),
+                // null means every group granted (the pre-grants default).
+                'field_groups' => $partner->field_groups,
             ],
+            'availableFieldGroups' => collect(FieldGroup::cases())
+                ->map(fn (FieldGroup $group): array => [
+                    'value' => $group->value,
+                    'label' => __('federation.field_groups.'.$group->value),
+                ]),
         ]);
+    }
+
+    /**
+     * Change the partner's field-group grants, then lift every visible
+     * listing's effective timestamp for this partner (a refreshed
+     * visibility event each) so its next poll picks up the re-gated
+     * payloads instead of waiting for the next content change (API-4).
+     */
+    public function updateFieldGroups(Request $request, FederationPartner $partner, SharingService $sharing): RedirectResponse
+    {
+        Gate::authorize(Permission::ManageFederation->value);
+
+        $validated = $request->validate([
+            'field_groups' => ['present', 'array'],
+            'field_groups.*' => [Rule::enum(FieldGroup::class)],
+        ]);
+
+        $partner->update(['field_groups' => array_values($validated['field_groups'])]);
+        $refreshed = $sharing->refreshPartnerFeed($partner);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('federation.field_groups_updated', [
+                'domain' => $partner->domain,
+                'refreshed' => $refreshed,
+            ]),
+        ]);
+
+        return back();
     }
 
     public function store(AddPartnerRequest $request, PartnerService $partners): RedirectResponse

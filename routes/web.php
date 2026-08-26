@@ -7,6 +7,7 @@ use App\Http\Controllers\App\DashboardController;
 use App\Http\Controllers\App\ImportedYachtController;
 use App\Http\Controllers\App\NodeDirectoryController;
 use App\Http\Controllers\App\PartnerController;
+use App\Http\Controllers\App\PartnerGroupController;
 use App\Http\Controllers\App\RoleController;
 use App\Http\Controllers\App\SyncedListingController;
 use App\Http\Controllers\App\UserController;
@@ -33,6 +34,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('federation/partners/{partner}/block', [PartnerController::class, 'block'])->name('partners.block');
     Route::post('federation/partners/{partner}/refresh-keys', [PartnerController::class, 'refreshKeys'])->name('partners.refresh-keys');
     Route::post('federation/partners/{partner}/sync', [PartnerController::class, 'sync'])->name('partners.sync');
+    Route::put('federation/partners/{partner}/field-groups', [PartnerController::class, 'updateFieldGroups'])->name('partners.field-groups.update');
+
+    Route::post('federation/partner-groups', [PartnerGroupController::class, 'store'])->name('partner-groups.store');
+    Route::put('federation/partner-groups/{partnerGroup}', [PartnerGroupController::class, 'update'])->name('partner-groups.update');
+    Route::delete('federation/partner-groups/{partnerGroup}', [PartnerGroupController::class, 'destroy'])->name('partner-groups.destroy');
 
     Route::get('federation/directory', [NodeDirectoryController::class, 'index'])->name('node-directory.index');
     Route::post('federation/directory/refresh', [NodeDirectoryController::class, 'refresh'])->name('node-directory.refresh');
@@ -58,6 +64,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('yachts/{yacht}/media', [YachtController::class, 'storeMedia'])->name('yachts.media.store');
     Route::patch('yachts/{yacht}/media/{media}', [YachtController::class, 'updateMedia'])->name('yachts.media.update');
     Route::delete('yachts/{yacht}/media/{media}', [YachtController::class, 'destroyMedia'])->name('yachts.media.destroy');
+    Route::put('yachts/{yacht}/audience', [YachtController::class, 'updateAudience'])->name('yachts.audience.update');
 
     // Sale and charter listings are separate screens, never one filtered
     // list — the type is chosen by which page creates the listing.
@@ -70,6 +77,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('charter-yachts/{charterYacht}/media', [CharterYachtController::class, 'storeMedia'])->name('charter-yachts.media.store');
     Route::patch('charter-yachts/{charterYacht}/media/{media}', [CharterYachtController::class, 'updateMedia'])->name('charter-yachts.media.update');
     Route::delete('charter-yachts/{charterYacht}/media/{media}', [CharterYachtController::class, 'destroyMedia'])->name('charter-yachts.media.destroy');
+    Route::put('charter-yachts/{charterYacht}/audience', [CharterYachtController::class, 'updateAudience'])->name('charter-yachts.audience.update');
 
     Route::get('imported-yachts', [ImportedYachtController::class, 'index'])->name('imported-yachts.index');
     Route::get('imported-charter-yachts', [ImportedYachtController::class, 'charterIndex'])->name('imported-charter-yachts.index');

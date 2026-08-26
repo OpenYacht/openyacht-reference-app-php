@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, router, setLayoutProps } from '@inertiajs/vue3';
+import { ref } from 'vue';
 import {
     approve,
     block,
@@ -8,6 +9,7 @@ import {
     show,
     sync,
 } from '@/routes/partners';
+import { update as updateFieldGroups } from '@/routes/partners/field-groups';
 
 type PartnerKey = {
     key_id: string;
@@ -31,11 +33,38 @@ type Partner = {
     consecutive_failures: number;
     listing_copies_count: number;
     is_stale: boolean;
+    field_groups: string[] | null;
 };
 
 const props = defineProps<{
     partner: Partner;
+    availableFieldGroups: { value: string; label: string }[];
 }>();
+
+// null means every group granted (the pre-grants default).
+const grantedFieldGroups = ref<string[]>(
+    props.partner.field_groups ??
+        props.availableFieldGroups.map((group) => group.value),
+);
+const savingGrants = ref(false);
+
+const toggleFieldGroup = (value: string) => {
+    grantedFieldGroups.value = grantedFieldGroups.value.includes(value)
+        ? grantedFieldGroups.value.filter((existing) => existing !== value)
+        : [...grantedFieldGroups.value, value];
+};
+
+const saveFieldGroups = () => {
+    savingGrants.value = true;
+    router.put(
+        updateFieldGroups.url(props.partner.id),
+        { field_groups: grantedFieldGroups.value },
+        {
+            preserveScroll: true,
+            onFinish: () => (savingGrants.value = false),
+        },
+    );
+};
 
 setLayoutProps({
     breadcrumbs: [
@@ -196,5 +225,37 @@ const trustColor = (level: string) =>
                 </ul>
             </UCard>
         </div>
+
+        <UCard>
+            <template #header>
+                <div>
+                    <h3 class="font-semibold">Sharing permissions</h3>
+                    <p class="mt-0.5 text-xs text-muted">
+                        The field groups this partner receives. Withheld values
+                        are nulled server-side before the payload is signed;
+                        saving re-gates every visible listing so the partner
+                        picks up the change on its next poll.
+                    </p>
+                </div>
+            </template>
+            <div class="space-y-4">
+                <div class="grid gap-1 sm:grid-cols-2">
+                    <UCheckbox
+                        v-for="group in availableFieldGroups"
+                        :key="group.value"
+                        :model-value="grantedFieldGroups.includes(group.value)"
+                        :label="group.label"
+                        @update:model-value="toggleFieldGroup(group.value)"
+                    />
+                </div>
+                <div class="flex justify-end">
+                    <UButton
+                        label="Save permissions"
+                        :loading="savingGrants"
+                        @click="saveFieldGroups"
+                    />
+                </div>
+            </div>
+        </UCard>
     </div>
 </template>

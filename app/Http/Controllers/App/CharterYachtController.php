@@ -14,6 +14,7 @@ use App\Models\Vessel;
 use App\Services\Federation\BuilderRegistry;
 use App\Services\Federation\CategoryVocabulary;
 use App\Services\Federation\DestinationRegistry;
+use App\Services\Federation\SharingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -132,6 +133,7 @@ class CharterYachtController extends Controller
 
         return Inertia::render('charter-yachts/Edit', [
             'map' => $this->mapConfig(),
+            'sharing' => $this->audienceProps($charterYacht),
             'yacht' => [
                 'id' => $charterYacht->id,
                 'uuid' => $charterYacht->uuid,
@@ -245,6 +247,11 @@ class CharterYachtController extends Controller
     public function destroyMedia(CharterYacht $charterYacht, Media $media): RedirectResponse
     {
         return $this->destroyListingMedia($charterYacht, $media);
+    }
+
+    public function updateAudience(Request $request, CharterYacht $charterYacht, SharingService $sharing): RedirectResponse
+    {
+        return $this->updateListingAudience($request, $charterYacht, $sharing);
     }
 
     /**
