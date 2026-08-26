@@ -64,7 +64,7 @@ Email (password resets, federation alerts) defaults to the `log` mailer. For rea
 
 ## Deployment
 
-Zero-downtime deploys via [Deployer](https://deployer.org) — the committed `deploy.php` is the whole recipe, and this section is the server half. Any small VPS works; a 2-core / 4 GB instance (e.g. Hetzner's entry tier) runs the app, its queue worker, and MySQL comfortably.
+Zero-downtime deploys via [Deployer](https://deployer.org) — the committed `deploy.php` is the whole recipe, and this section is the server half. Any small VPS works; a 2-core / 4 GB instance (e.g. Hetzner's entry tier) runs the app, its queue worker, and MySQL comfortably. Every node is one `host()` stanza with instance-scoped names (deploy path, database, worker program), so a second node — on the same server or another — is one more stanza, not a second recipe.
 
 Provision once (Ubuntu 24.04, as root — creates the unprivileged `deployer` user the recipe connects as):
 
@@ -83,22 +83,22 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install -y node
 corepack enable && corepack prepare pnpm@latest --activate
 ```
 
-Point nginx at `/home/deployer/openyacht/current/public` (standard Laravel vhost, `client_max_body_size 32m` for media uploads), issue TLS with certbot — the identity domain must serve real TLS; partners verify it — and give the queue worker a supervisor program and the scheduler its cron. Both are load-bearing: media imports, federation alert emails, and auto-publish all ride them.
+Point nginx at `/home/deployer/openyacht-test/current/public` (standard Laravel vhost, `client_max_body_size 32m` for media uploads), issue TLS with certbot — the identity domain must serve real TLS; partners verify it — and give the queue worker a supervisor program and the scheduler its cron. Both are load-bearing: media imports, federation alert emails, and auto-publish all ride them.
 
 ```ini
-; /etc/supervisor/conf.d/openyacht-worker.conf
-[program:openyacht-worker]
-command=php8.4 /home/deployer/openyacht/current/artisan queue:work --sleep=3 --tries=3 --max-time=3600
+; /etc/supervisor/conf.d/openyacht-test-worker.conf
+[program:openyacht-test-worker]
+command=php8.4 /home/deployer/openyacht-test/current/artisan queue:work --sleep=3 --tries=3 --max-time=3600
 user=deployer
 autostart=true
 autorestart=true
 ```
 
 ```cron
-* * * * * cd /home/deployer/openyacht/current && php8.4 artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /home/deployer/openyacht-test/current && php8.4 artisan schedule:run >> /dev/null 2>&1
 ```
 
-Then, from a checkout: `DEPLOY_HOST=your.domain vendor/bin/dep deploy production`. The first run stops at the missing shared `.env` — create it (`APP_KEY` via `php artisan key:generate --show`, database credentials, the `OPENYACHT_*` identity variables, Brevo mail), deploy again, and inside `current/` run `php artisan db:seed --class=RoleSeeder --force`, `php artisan openyacht:install`, and `php artisan openyacht:create-user` once (deploys migrate but never seed — the role matrix comes from the seeder). Every later deploy is the single `dep deploy` command: it builds assets on the server, migrates, restarts the queue worker, and swaps the `current` symlink atomically.
+Then, from a checkout: `DEPLOY_HOST=your.domain vendor/bin/dep deploy test`. The first run stops at the missing shared `.env` — create it (`APP_KEY` via `php artisan key:generate --show`, database credentials, the `OPENYACHT_*` identity variables, Brevo mail), deploy again, and inside `current/` run `php artisan db:seed --class=RoleSeeder --force`, `php artisan openyacht:install`, and `php artisan openyacht:create-user` once (deploys migrate but never seed — the role matrix comes from the seeder). Every later deploy is the single `dep deploy` command: it builds assets on the server, migrates, restarts the queue worker, and swaps the `current` symlink atomically.
 
 ## Tests are the conformance story
 

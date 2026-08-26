@@ -12,9 +12,9 @@ require 'recipe/laravel.php';
  * instance is plenty) are documented in the README's Deployment section.
  *
  * Usage:
- *   vendor/bin/dep deploy production
+ *   vendor/bin/dep deploy test
  *
- * First run: `vendor/bin/dep deploy production` then copy .env into the
+ * First run: `vendor/bin/dep deploy test` then copy .env into the
  * shared directory (dep will pause on the missing .env), set the app key
  * and node identity, and run `php artisan openyacht:install` once inside
  * {{deploy_path}}/current.
@@ -28,13 +28,18 @@ set('keep_releases', 5);
 // shared file unused but harmless.
 add('shared_files', ['database/database.sqlite']);
 
-host('production')
+// One host() stanza per node. Everything that matters is per-instance
+// by construction — deploy path, shared .env (node identity, keypair),
+// database, vhost, worker — so a second node on the same server (or
+// another server) is one more stanza with its own names, e.g. a
+// sandbox beside this test instance.
+host('test')
     // The node's identity domain — permanent in practice (it anchors
     // every canonical listing URI), so point DNS first and choose
     // deliberately (yacht-identity.md).
     ->setHostname(getenv('DEPLOY_HOST') ?: 'openyacht.example.com')
     ->setRemoteUser('deployer')
-    ->setDeployPath('~/openyacht');
+    ->setDeployPath('~/openyacht-test');
 
 // Frontend build on the server: vendors must be installed first (the
 // Vite wayfinder plugin shells out to artisan) and .env must be linked
