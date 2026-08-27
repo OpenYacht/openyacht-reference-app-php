@@ -7,8 +7,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRoleRequest;
 use App\Models\User;
+use App\Notifications\UserInvitation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -45,9 +48,16 @@ class UserController extends Controller
     }
 
     /**
-     * Create an account and grant it a role in one step. The email is marked
-     * verified because an administrator vouched for it here — there is no
-     * invitation round-trip to confirm it, exactly as with
+     * Create an account, grant it a role, and email the person a link to
+     * set their own password. Self-registration is disabled, so this mail
+     * is their only way in; the administrator never chooses or handles a
+     * credential on their behalf.
+     *
+     * The account is created with an unusable random password rather than
+     * a null one: the column is not nullable, and a random value that
+     * nobody holds cannot be guessed into a login before the invitation
+     * is accepted. The address is marked verified because an administrator
+     * with users.manage vouched for it, matching
      * `php artisan openyacht:create-user`.
      */
     public function store(StoreUserRequest $request): RedirectResponse
@@ -57,24 +67,29 @@ class UserController extends Controller
         $user = User::create([
             'name' => $request->string('name')->value(),
             'email' => $request->string('email')->value(),
-            'password' => $request->string('password')->value(),
+            'password' => Str::password(64),
         ]);
 
         $user->markEmailAsVerified();
         $user->assignRole($role);
+
+        $user->notify(new UserInvitation(
+            Password::broker()->createToken($user),
+            $request->user()->name,
+        ));
 
         activity('users')
             ->causedBy($request->user())
             ->performedOn($user)
             ->withProperties(['role' => $role->value])
             ->event('created')
-            ->log("User {$user->email} created with the {$role->value} role");
+            ->log("User {$user->email} invited with the {$role->value} role");
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => __('users.created', [
+            'message' => __('users.invited', [
                 'name' => $user->name,
-                'role' => $role->label(),
+                'email' => $user->email,
             ]),
         ]);
 

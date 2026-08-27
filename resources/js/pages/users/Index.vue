@@ -43,7 +43,6 @@ const showCreateModal = ref(false);
 const form = useForm({
     name: '',
     email: '',
-    password: '',
     role: '',
 });
 
@@ -86,7 +85,7 @@ const changeRole = (user: ManagedUser, role: string) => {
             />
             <UButton
                 icon="i-lucide-plus"
-                label="New user"
+                label="Invite user"
                 @click="showCreateModal = true"
             />
         </div>
@@ -143,8 +142,8 @@ const changeRole = (user: ManagedUser, role: string) => {
 
         <UModal
             v-model:open="showCreateModal"
-            title="New user"
-            description="Self-registration is disabled, so accounts are created here. The address is treated as verified — no confirmation email is sent."
+            title="Invite a user"
+            description="They receive an email with a link to set their own password. Self-registration is disabled, so this invitation is their way in."
         >
             <template #body>
                 <form class="space-y-4" @submit.prevent="submit">
@@ -171,20 +170,6 @@ const changeRole = (user: ManagedUser, role: string) => {
                         />
                     </UFormField>
 
-                    <UFormField
-                        label="Password"
-                        :error="form.errors.password"
-                        help="Share it with them directly — they can change it under Settings."
-                        required
-                    >
-                        <UInput
-                            v-model="form.password"
-                            type="password"
-                            class="w-full"
-                            autocomplete="new-password"
-                        />
-                    </UFormField>
-
                     <UFormField label="Role" :error="form.errors.role" required>
                         <USelect
                             v-model="form.role"
@@ -206,7 +191,7 @@ const changeRole = (user: ManagedUser, role: string) => {
                         <UButton
                             type="submit"
                             :loading="form.processing"
-                            label="Create user"
+                            label="Send invitation"
                         />
                     </div>
                 </form>

@@ -8,7 +8,6 @@ use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\Validator;
 
 class StoreUserRequest extends FormRequest
@@ -32,7 +31,6 @@ class StoreUserRequest extends FormRequest
     {
         return [
             ...$this->profileRules(),
-            'password' => ['required', 'string', Password::default()],
             'role' => ['required', Rule::enum(Role::class)],
         ];
     }
