@@ -60,43 +60,102 @@ Then set the node's identity in `.env`:
 
 Production needs the scheduler (hourly sync) and a queue worker (media imports).
 
-Email (password resets, federation alerts) defaults to the `log` mailer. For real delivery set `MAIL_MAILER=brevo` with a `BREVO_API_KEY` (Brevo's HTTP API — no SMTP credentials needed) and a real `MAIL_FROM_ADDRESS`; any other Laravel mail transport works the same way. Federation events needing a human — an unknown node introducing itself (FP-13) and a partner's node UUID changing (FP-11) — are emailed to users holding the *Receive federation notifications* permission (super admins by default; tune it in the roles matrix). After upgrades that add permissions, re-run `php artisan db:seed --class=RoleSeeder` — it is idempotent and keeps super_admin holding every permission without touching a tuned matrix.
+Email (password resets, federation alerts) defaults to the `log` mailer. For real delivery set `MAIL_MAILER=brevo` with a `BREVO_API_KEY` (Brevo's HTTP API — no SMTP credentials needed) and a real `MAIL_FROM_ADDRESS`; any other Laravel mail transport works the same way. If the Brevo account has authorised-IP security enabled, add the server's address (IPv6 included — that is usually the one outbound requests use) or every send fails with a 401 naming the unrecognised IP. Federation events needing a human — an unknown node introducing itself (FP-13) and a partner's node UUID changing (FP-11) — are emailed to users holding the *Receive federation notifications* permission (super admins by default; tune it in the roles matrix). After upgrades that add permissions, re-run `php artisan db:seed --class=RoleSeeder` — it is idempotent and keeps super_admin holding every permission without touching a tuned matrix.
 
 ## Deployment
 
-Zero-downtime deploys via [Deployer](https://deployer.org) — the committed `deploy.php` is the whole recipe, and this section is the server half. Any small VPS works; a 2-core / 4 GB instance (e.g. Hetzner's entry tier) runs the app, its queue worker, and MySQL comfortably. Every node is one `host()` stanza with instance-scoped names (deploy path, database, worker program), so a second node — on the same server or another — is one more stanza, not a second recipe.
+Zero-downtime deploys via [Deployer](https://deployer.org) — the committed `deploy.php` is the whole recipe, and this section is the server half. Any small VPS works; a 2-core / 4 GB instance (e.g. Hetzner's entry tier) runs the app, its queue worker, and MySQL comfortably. Every node is one `host()` stanza with instance-scoped names (deploy path, database, worker program, FPM pool), so a second node — on the same server or another — is one more stanza, not a second recipe.
 
-Provision once (Ubuntu 24.04, as root — creates the unprivileged `deployer` user the recipe connects as):
+The block below targets **Ubuntu 26.04 LTS**, which carries PHP 8.5 and Node 22 in its own archive, so no third-party repositories are involved. On Ubuntu 24.04, add `add-apt-repository -y ppa:ondrej/php` first and read `php8.5` as `php8.4` throughout. The PPA is not an option on 26.04 — it publishes nothing for `resolute` — which is why the native packages are the better path there anyway.
+
+Provision once, as root — this creates the unprivileged `deployer` user the recipe connects as:
 
 ```bash
-adduser --disabled-password deployer && su - deployer -c 'mkdir -p ~/.ssh' \
-  && cp ~/.ssh/authorized_keys /home/deployer/.ssh/ && chown -R deployer: /home/deployer/.ssh
+# --gecos "" or adduser stops at an interactive Full Name prompt.
+adduser --disabled-password --gecos "" deployer
+su - deployer -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh'
+cp ~/.ssh/authorized_keys /home/deployer/.ssh/ && chown -R deployer: /home/deployer/.ssh
+chmod 600 /home/deployer/.ssh/authorized_keys
 
-add-apt-repository -y ppa:ondrej/php
-apt install -y nginx certbot python3-certbot-nginx mysql-server supervisor git unzip \
-  php8.4-fpm php8.4-cli php8.4-mysql php8.4-sqlite3 php8.4-gd php8.4-curl \
-  php8.4-mbstring php8.4-xml php8.4-zip php8.4-intl php8.4-bcmath
-php8.4 -m | grep -q sodium || echo 'MISSING: sodium (required for Ed25519 signing)'
+# nginx runs as www-data and must traverse the home directory to reach
+# current/public. adduser creates it 0750, which serves permission errors forever.
+chmod 755 /home/deployer
 
-curl -sS https://getcomposer.org/installer | php8.4 -- --install-dir=/usr/local/bin --filename=composer
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install -y nodejs
-corepack enable && corepack prepare pnpm@latest --activate
+apt update && apt install -y nginx certbot python3-certbot-nginx mysql-server supervisor git unzip curl \
+  php8.5-fpm php8.5-cli php8.5-mysql php8.5-sqlite3 php8.5-gd php8.5-curl \
+  php8.5-mbstring php8.5-xml php8.5-zip php8.5-intl php8.5-bcmath \
+  nodejs
+php8.5 -m | grep -q sodium || echo 'MISSING: sodium (required for Ed25519 signing)'
+
+curl -sS https://getcomposer.org/installer | php8.5 -- --install-dir=/usr/local/bin --filename=composer
+corepack enable
 ```
 
-Point nginx at `/home/deployer/openyacht-test/current/public` (standard Laravel vhost, `client_max_body_size 32m` for media uploads), issue TLS with certbot — the identity domain must serve real TLS; partners verify it — and give the queue worker a supervisor program and the scheduler its cron. Both are load-bearing: media imports, federation alert emails, and auto-publish all ride them.
+Do **not** add the `npm` package on 26.04: the archive ships npm 9.2.0, whose `node-gyp` dependency pulls an unsatisfiable `libssl-dev` chain and aborts the entire `apt install`. Nothing here needs it — `nodejs` provides corepack, and `package.json` pins pnpm through its `packageManager` field, so corepack fetches the correct pnpm for whichever user runs the build. That pin is load-bearing: without it corepack resolves `pnpm@latest` independently per user, and current pnpm 11 both crashes on Node 22 and is a major ahead of this repo's lockfile.
+
+Give each instance its own FPM pool, running as `deployer`, so a second node gets its own pool and socket beside this one:
+
+```ini
+; /etc/php/8.5/fpm/pool.d/openyacht-test.conf
+[openyacht-test]
+user = deployer
+group = deployer
+listen = /run/php/php8.5-fpm-openyacht-test.sock
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0660
+pm = dynamic
+pm.max_children = 12
+pm.start_servers = 3
+pm.min_spare_servers = 2
+pm.max_spare_servers = 5
+php_admin_value[upload_max_filesize] = 32M
+php_admin_value[post_max_size] = 32M
+```
+
+Point nginx at `/home/deployer/openyacht-test/current/public` as a standard Laravel vhost and issue TLS with certbot — the identity domain must serve real TLS; partners verify it. Three details are not optional:
+
+```nginx
+client_max_body_size 32m;              # media uploads
+
+location ~ /\.(?!well-known).* {       # the discovery document is the trust root
+    deny all;
+}
+
+location ~ \.php$ {
+    fastcgi_pass unix:/run/php/php8.5-fpm-openyacht-test.sock;
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+    fastcgi_param DOCUMENT_ROOT $realpath_root;
+
+    # The app's response headers (session + XSRF cookies) run to ~6 KB.
+    # nginx's 4 KB default overflows and every authenticated page 502s,
+    # while lean JSON routes keep working — so the node looks half-alive.
+    fastcgi_buffer_size 32k;
+    fastcgi_buffers 16 32k;
+    fastcgi_busy_buffers_size 64k;
+}
+```
+
+If the identity domain sits behind Cloudflare, note that Universal SSL covers only a single label of subdomain: `node.example.com` proxies fine, `node.sub.example.com` has no edge certificate and fails the TLS handshake outright. Either leave such a record DNS-only so the origin serves its own certificate, or choose a single-label subdomain. Certbot's HTTP-01 challenge itself passes through a proxied record without complaint.
+
+Then the queue worker and the scheduler — both load-bearing, since media imports, federation alert emails, and acceptance-policy auto-publish all ride them:
 
 ```ini
 ; /etc/supervisor/conf.d/openyacht-test-worker.conf
 [program:openyacht-test-worker]
-command=php8.4 /home/deployer/openyacht-test/current/artisan queue:work --sleep=3 --tries=3 --max-time=3600
+command=php8.5 /home/deployer/openyacht-test/current/artisan queue:work --sleep=3 --tries=3 --max-time=3600
 user=deployer
 autostart=true
 autorestart=true
+stopwaitsecs=3600
 ```
 
 ```cron
-* * * * * cd /home/deployer/openyacht-test/current && php8.4 artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /home/deployer/openyacht-test/current && php8.5 artisan schedule:run >> /dev/null 2>&1
 ```
+
+Run `supervisorctl update` only after the first deploy has created `current/`, or the program restart-loops against a path that does not exist yet.
 
 **Before every deploy** — the same three gates, every time; deploys pull from the repository, so anything unpushed or unchecked simply is not what ships:
 
@@ -104,7 +163,20 @@ autorestart=true
 2. Push, and wait for **both** CI jobs — `ci` and `tests-mysql` — to go green. The MySQL job is the cross-database gate; SQLite passing locally proves nothing about engine divergence.
 3. Deploy the commit CI approved, not a newer local one.
 
-Then, from a checkout: `DEPLOY_HOST=your.domain vendor/bin/dep deploy test`. The first run stops at the missing shared `.env` — create it (`APP_KEY` via `php artisan key:generate --show`, database credentials, the `OPENYACHT_*` identity variables, Brevo mail), deploy again, and inside `current/` run `php artisan db:seed --class=RoleSeeder --force`, `php artisan openyacht:install`, and `php artisan openyacht:create-user` once (deploys migrate but never seed — the role matrix comes from the seeder). Every later deploy is the single `dep deploy` command: it builds assets on the server, migrates, restarts the queue worker, and swaps the `current` symlink atomically.
+Then, from a checkout: `DEPLOY_HOST=your.domain vendor/bin/dep deploy test`. Deployer needs PHP 8.4+ locally (the lockfile's floor) and shells out to `ssh`, so run it from a Unix shell — Windows OpenSSH implements no `ControlMaster`, and Deployer's default connection multiplexing fails there on every task with `getsockname failed: Not a socket`; from Windows, pass `-o ssh_multiplexing=false`. Point the connection at its key with an `~/.ssh/config` entry rather than editing `deploy.php`, which deliberately carries no one's local paths.
+
+The first run stops at the missing shared `.env`. Create it at `{{deploy_path}}/shared/.env` (`APP_KEY` via `php artisan key:generate --show`, database credentials, the `OPENYACHT_*` identity variables, Brevo mail), deploy again, then inside `current/` run once:
+
+```bash
+php artisan db:seed --class=RoleSeeder --force     # deploys migrate but never seed
+php artisan openyacht:install                      # node UUID + first federation keypair
+php artisan optimize:clear && php artisan optimize  # REQUIRED, see below
+php artisan openyacht:create-user                  # interactive; needs a TTY
+```
+
+The cache rebuild is not optional, and its position is the point: the deploy's own `artisan:optimize` caches config *before* `openyacht:install` writes `OPENYACHT_NODE_UUID` into `.env`, so skipping it leaves the node serving a discovery document with `"uuid": null` — a partner reading that sees a node with no identity, and nothing else appears wrong. `openyacht:create-user` prompts through Laravel Prompts and cannot be piped or scripted; run it on an interactive shell. There is no web UI for creating users — self-registration is disabled by design, so every account is minted with this command.
+
+Every later deploy is the single `dep deploy` command: it builds assets on the server, migrates, restarts the queue worker, and swaps the `current` symlink atomically.
 
 ## Tests are the conformance story
 
