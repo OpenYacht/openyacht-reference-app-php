@@ -197,9 +197,9 @@ Every later deploy is the single `dep deploy` command: it builds assets on the s
 The Pest suite is grouped by the spec's conformance IDs — the test run *is* the self-certification:
 
 ```bash
-php artisan test                                    # SQLite
-php artisan test --configuration=phpunit.mysql.xml  # identical suite on MySQL
-php artisan test --group=FP-7                       # a single conformance ID
+php artisan test                                   # SQLite
+vendor/bin/pest --configuration=phpunit.mysql.xml  # identical suite on MySQL
+php artisan test --group=FP-7                      # a single conformance ID
 ```
 
 Cross-database parity is enforced: both lanes run in CI, and engine-specific traps are documented in `.ai/rules/`.

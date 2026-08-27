@@ -79,4 +79,7 @@ jobs:
         run: composer setup
 
       - name: Run tests against MySQL
-        run: php artisan test --compact --configuration=phpunit.mysql.xml
+        # Pest directly, not `artisan test`: Collision's TestCommand always
+        # injects --configuration=phpunit.xml, so passing a second one makes
+        # PHPUnit warn and exit non-zero even when every test passes.
+        run: php vendor/bin/pest --compact --configuration=phpunit.mysql.xml
