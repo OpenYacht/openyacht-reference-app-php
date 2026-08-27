@@ -82,8 +82,9 @@ chmod 600 /home/deployer/.ssh/authorized_keys
 chmod 755 /home/deployer
 
 apt update && apt install -y nginx certbot python3-certbot-nginx mysql-server supervisor git unzip curl \
+  redis-server \
   php8.5-fpm php8.5-cli php8.5-mysql php8.5-sqlite3 php8.5-gd php8.5-curl \
-  php8.5-mbstring php8.5-xml php8.5-zip php8.5-intl php8.5-bcmath \
+  php8.5-mbstring php8.5-xml php8.5-zip php8.5-intl php8.5-bcmath php8.5-redis \
   nodejs
 php8.5 -m | grep -q sodium || echo 'MISSING: sodium (required for Ed25519 signing)'
 
@@ -92,6 +93,19 @@ corepack enable
 ```
 
 Do **not** add the `npm` package on 26.04: the archive ships npm 9.2.0, whose `node-gyp` dependency pulls an unsatisfiable `libssl-dev` chain and aborts the entire `apt install`. Nothing here needs it — `nodejs` provides corepack, and `package.json` pins pnpm through its `packageManager` field, so corepack fetches the correct pnpm for whichever user runs the build. That pin is load-bearing: without it corepack resolves `pnpm@latest` independently per user, and current pnpm 11 both crashes on Node 22 and is a major ahead of this repo's lockfile.
+
+Redis is in that list because the application's defaults are deliberately dependency-free, not because they are the right production choice. Out of the box the cache, session, and queue drivers are all `database`, which keeps a fresh install to one moving part — but it means every request touches MySQL for its session, and the queue worker polls the `jobs` table every three seconds forever. On a production node, point all three at Redis in the shared `.env`:
+
+```dotenv
+CACHE_STORE=redis
+SESSION_DRIVER=redis
+QUEUE_CONNECTION=redis
+REDIS_CLIENT=phpredis
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+```
+
+The queue is where this matters most: the database driver adds up to three seconds of latency to every media import and federation notification and writes to MySQL continuously while idle. Nothing in the protocol depends on the choice, and `database` remains a valid configuration — a node that would rather not run Redis simply omits it and skips this block. Changing `SESSION_DRIVER` invalidates existing sessions, so switch it during a maintenance window rather than under load, and restart both the FPM pool and the queue worker afterwards so they pick up the new drivers.
 
 Give each instance its own FPM pool, running as `deployer`, so a second node gets its own pool and socket beside this one:
 
