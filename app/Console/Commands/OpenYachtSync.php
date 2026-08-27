@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Enums\TrustLevel;
 use App\Models\FederationPartner;
+use App\Services\Federation\PartnerAwaitingApproval;
 use App\Services\Federation\SyncService;
 use Illuminate\Console\Command;
 use Throwable;
@@ -59,6 +60,11 @@ class OpenYachtSync extends Command
                 $result = $sync->sync($partner);
 
                 $this->info("{$partner->domain}: {$result->created} created, {$result->updated} updated, {$result->tombstoned} tombstoned");
+            } catch (PartnerAwaitingApproval) {
+                // Not a failure: delivered, verified, and waiting on a
+                // human over there. Says so plainly, because the operator
+                // reading this needs to chase the partner, not the node.
+                $this->line("{$partner->domain}: awaiting approval on their side — nothing to sync yet");
             } catch (Throwable $exception) {
                 $failures++;
                 $this->error("{$partner->domain}: sync failed — {$exception->getMessage()}");

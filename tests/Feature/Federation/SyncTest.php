@@ -6,6 +6,7 @@ use App\Models\FederationKey;
 use App\Models\FederationPartner;
 use App\Models\ListingCopy;
 use App\Models\User;
+use App\Services\Federation\PartnerAwaitingApproval;
 use App\Services\Federation\SyncService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Carbon;
@@ -180,6 +181,45 @@ test('a failed sync increments consecutive failures and backs off exponentially'
 
     expect($sync->isDue($partner->refresh()))->toBeTrue();
 });
+
+test('a partner that has not approved us yet is not counted as a failure', function () {
+    $partner = FederationPartner::factory()->verified()->create(['domain' => 'openyacht.partner.example']);
+
+    Http::fake([
+        'openyacht.partner.example/*' => Http::response([
+            'error' => [
+                'code' => 'PARTNER_PROVISIONAL',
+                'message' => 'Partnership is pending approval; no listings are shared yet.',
+            ],
+        ], 403),
+    ]);
+
+    $sync = app(SyncService::class);
+
+    // PARTNER_PROVISIONAL is "authenticated but not yet approved"
+    // (api-design.md §Errors) — the request was delivered and verified, so
+    // backing off would punish both sides for a correct handshake and
+    // delay the first sync long after approval finally lands.
+    expect(fn () => $sync->sync($partner))->toThrow(PartnerAwaitingApproval::class)
+        ->and($partner->refresh()->consecutive_failures)->toBe(0)
+        ->and($sync->isDue($partner))->toBeTrue();
+})->group('FP-13');
+
+test('other 403 responses still count as failures', function () {
+    $partner = FederationPartner::factory()->verified()->create(['domain' => 'openyacht.partner.example']);
+
+    Http::fake([
+        'openyacht.partner.example/*' => Http::response([
+            'error' => ['code' => 'PARTNER_BLOCKED', 'message' => 'This partner is blocked.'],
+        ], 403),
+    ]);
+
+    $sync = app(SyncService::class);
+
+    expect(fn () => $sync->sync($partner))->toThrow(Exception::class)
+        ->and($partner->refresh()->consecutive_failures)->toBe(1)
+        ->and($sync->isDue($partner))->toBeFalse();
+})->group('FP-13');
 
 test('copies of tombstoned listings are not tombstoned twice', function () {
     $partner = FederationPartner::factory()->verified()->create(['domain' => 'openyacht.partner.example']);

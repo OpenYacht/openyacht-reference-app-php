@@ -6,6 +6,7 @@ use App\Enums\AcceptancePolicy;
 use App\Enums\ListingStatus;
 use App\Models\FederationPartner;
 use App\Models\ListingCopy;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Carbon;
 use Throwable;
 
@@ -28,6 +29,7 @@ class SyncService
     ) {}
 
     /**
+     * @throws PartnerAwaitingApproval when the partner has not approved us yet
      * @throws Throwable on sync failure, after recording the failed attempt
      */
     public function sync(FederationPartner $partner): SyncResult
@@ -36,6 +38,23 @@ class SyncService
 
         try {
             $result = $this->pullAllPages($partner);
+        } catch (RequestException $exception) {
+            // "Authenticated but not yet approved for this resource" is a
+            // healthy state, not a failure: the request was delivered and
+            // its signature verified. Counting it would compound the
+            // backoff while both sides behave correctly, so the failure
+            // counter is left alone and this node keeps polling on its
+            // normal schedule until a human approves the partnership.
+            if ($this->isAwaitingApproval($exception)) {
+                throw new PartnerAwaitingApproval(
+                    "{$partner->domain} has not approved this node yet.",
+                    previous: $exception,
+                );
+            }
+
+            $partner->increment('consecutive_failures');
+
+            throw $exception;
         } catch (Throwable $exception) {
             $partner->increment('consecutive_failures');
 
@@ -43,6 +62,18 @@ class SyncService
         }
 
         return $result;
+    }
+
+    /**
+     * // api-design.md §Errors: PARTNER_PROVISIONAL, HTTP 403.
+     */
+    private function isAwaitingApproval(RequestException $exception): bool
+    {
+        if ($exception->response->status() !== 403) {
+            return false;
+        }
+
+        return data_get($exception->response->json(), 'error.code') === 'PARTNER_PROVISIONAL';
     }
 
     /**
