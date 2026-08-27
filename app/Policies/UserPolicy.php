@@ -23,6 +23,15 @@ class UserPolicy
     }
 
     /**
+     * Accounts are minted by an administrator — self-registration is
+     * disabled, so this is the only way in besides openyacht:create-user.
+     */
+    public function create(User $user): bool
+    {
+        return $user->can(Permission::ManageUsers->value);
+    }
+
+    /**
      * A user's role can be changed by anyone holding the users.manage
      * permission — never their own (no self-escalation, and no
      * self-demotion out of the last super_admin either).

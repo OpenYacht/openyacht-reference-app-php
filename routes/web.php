@@ -20,6 +20,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     Route::get('users', [UserController::class, 'index'])->name('users.index');
+    Route::post('users', [UserController::class, 'store'])->name('users.store');
     Route::put('users/{user}/role', [UserController::class, 'update'])->name('users.role.update');
 
     Route::get('roles', [RoleController::class, 'index'])->name('roles.index');

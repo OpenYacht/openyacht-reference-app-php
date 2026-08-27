@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { ref } from 'vue';
 import Heading from '@/components/Heading.vue';
-import { index } from '@/routes/users';
+import { index, store } from '@/routes/users';
 import { update } from '@/routes/users/role';
 
 type ManagedUser = {
@@ -37,6 +38,24 @@ defineOptions({
 const page = usePage();
 const toast = useToast();
 
+const showCreateModal = ref(false);
+
+const form = useForm({
+    name: '',
+    email: '',
+    password: '',
+    role: '',
+});
+
+const submit = () =>
+    form.submit(store(), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showCreateModal.value = false;
+            form.reset();
+        },
+    });
+
 const changeRole = (user: ManagedUser, role: string) => {
     router.put(
         update.url({ user: user.id }),
@@ -58,10 +77,19 @@ const changeRole = (user: ManagedUser, role: string) => {
     <Head title="Users" />
 
     <div class="mx-auto w-full max-w-3xl space-y-6 px-4 py-6">
-        <Heading
-            title="Users"
-            description="Manage who can access this node and what they can do"
-        />
+        <div
+            class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+        >
+            <Heading
+                title="Users"
+                description="Manage who can access this node and what they can do"
+            />
+            <UButton
+                icon="i-lucide-plus"
+                label="New user"
+                @click="showCreateModal = true"
+            />
+        </div>
 
         <div class="overflow-hidden rounded-lg border border-default">
             <div
@@ -112,5 +140,77 @@ const changeRole = (user: ManagedUser, role: string) => {
             Role changes take effect immediately and are recorded in the
             activity log.
         </p>
+
+        <UModal
+            v-model:open="showCreateModal"
+            title="New user"
+            description="Self-registration is disabled, so accounts are created here. The address is treated as verified — no confirmation email is sent."
+        >
+            <template #body>
+                <form class="space-y-4" @submit.prevent="submit">
+                    <UFormField label="Name" :error="form.errors.name" required>
+                        <UInput
+                            v-model="form.name"
+                            class="w-full"
+                            autocomplete="off"
+                            placeholder="Alex Marlow"
+                        />
+                    </UFormField>
+
+                    <UFormField
+                        label="Email"
+                        :error="form.errors.email"
+                        required
+                    >
+                        <UInput
+                            v-model="form.email"
+                            type="email"
+                            class="w-full"
+                            autocomplete="off"
+                            placeholder="alex@example.com"
+                        />
+                    </UFormField>
+
+                    <UFormField
+                        label="Password"
+                        :error="form.errors.password"
+                        help="Share it with them directly — they can change it under Settings."
+                        required
+                    >
+                        <UInput
+                            v-model="form.password"
+                            type="password"
+                            class="w-full"
+                            autocomplete="new-password"
+                        />
+                    </UFormField>
+
+                    <UFormField label="Role" :error="form.errors.role" required>
+                        <USelect
+                            v-model="form.role"
+                            :items="roles"
+                            value-key="value"
+                            placeholder="Select a role"
+                            class="w-full"
+                        />
+                    </UFormField>
+
+                    <div class="flex justify-end gap-2">
+                        <UButton
+                            type="button"
+                            color="neutral"
+                            variant="soft"
+                            label="Cancel"
+                            @click="showCreateModal = false"
+                        />
+                        <UButton
+                            type="submit"
+                            :loading="form.processing"
+                            label="Create user"
+                        />
+                    </div>
+                </form>
+            </template>
+        </UModal>
     </div>
 </template>

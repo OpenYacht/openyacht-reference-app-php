@@ -4,6 +4,7 @@ namespace App\Http\Controllers\App;
 
 use App\Enums\Role;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRoleRequest;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -41,6 +42,43 @@ class UserController extends Controller
                 ])
                 ->all(),
         ]);
+    }
+
+    /**
+     * Create an account and grant it a role in one step. The email is marked
+     * verified because an administrator vouched for it here — there is no
+     * invitation round-trip to confirm it, exactly as with
+     * `php artisan openyacht:create-user`.
+     */
+    public function store(StoreUserRequest $request): RedirectResponse
+    {
+        $role = Role::from($request->string('role')->value());
+
+        $user = User::create([
+            'name' => $request->string('name')->value(),
+            'email' => $request->string('email')->value(),
+            'password' => $request->string('password')->value(),
+        ]);
+
+        $user->markEmailAsVerified();
+        $user->assignRole($role);
+
+        activity('users')
+            ->causedBy($request->user())
+            ->performedOn($user)
+            ->withProperties(['role' => $role->value])
+            ->event('created')
+            ->log("User {$user->email} created with the {$role->value} role");
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('users.created', [
+                'name' => $user->name,
+                'role' => $role->label(),
+            ]),
+        ]);
+
+        return back();
     }
 
     public function update(UpdateUserRoleRequest $request, User $user): RedirectResponse
