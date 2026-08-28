@@ -139,6 +139,36 @@ test('domain-restricted keys refuse foreign browser origins', function () {
         'X-API-Key' => $generated['plaintext'],
         'Origin' => 'https://example.com',
     ])->assertOk();
+
+    // A subdomain of an allowed domain is allowed (dot-suffix match).
+    $this->getJson('/api/v1/yachts', [
+        'X-API-Key' => $generated['plaintext'],
+        'Origin' => 'https://shop.example.com',
+    ])->assertOk();
+});
+
+test('a domain-restricted key is refused when no origin is presented', function () {
+    // The allowlist is an access boundary, not a browser-only nicety: a
+    // non-browser client sends no Origin/Referer, and must be rejected
+    // rather than skipping the check (a leaked key would otherwise work).
+    $generated = apiKeyWithScopes(['yachts:read'], domains: ['example.com']);
+
+    $this->getJson('/api/v1/yachts', ['X-API-Key' => $generated['plaintext']])
+        ->assertForbidden();
+});
+
+test('a domain-restricted key rejects a look-alike origin (no substring match)', function () {
+    $generated = apiKeyWithScopes(['yachts:read'], domains: ['example.com']);
+
+    $this->getJson('/api/v1/yachts', [
+        'X-API-Key' => $generated['plaintext'],
+        'Origin' => 'https://example.com.attacker.net',
+    ])->assertForbidden();
+
+    $this->getJson('/api/v1/yachts', [
+        'X-API-Key' => $generated['plaintext'],
+        'Referer' => 'https://evil.net/?ref=example.com',
+    ])->assertForbidden();
 });
 
 test('key management requires the settings permission and reveals the key once', function () {

@@ -41,18 +41,25 @@ class AuthenticateApiKey
         $domains = $apiKey->domains ?? [];
 
         if ($domains !== []) {
+            // A domain allowlist is an access boundary, so a request that
+            // carries no Origin/Referer (any non-browser client) must be
+            // rejected, not waved through — otherwise the restriction only
+            // constrains browsers and a leaked key is used freely. Match
+            // on the parsed host with exact or dot-suffix equality, never a
+            // substring (which `partner.example.attacker.com` would pass).
             $origin = $request->header('Origin') ?? $request->header('Referer');
+            $host = strtolower((string) parse_url((string) $origin, PHP_URL_HOST));
 
-            if ($origin !== null) {
-                $allowed = collect($domains)->contains(
-                    fn (string $domain): bool => str_contains($origin, $domain),
-                );
+            $allowed = $host !== '' && collect($domains)->contains(function (string $domain) use ($host): bool {
+                $domain = strtolower($domain);
 
-                if (! $allowed) {
-                    return response()->json([
-                        'error' => 'API key is not authorized for this domain.',
-                    ], 403);
-                }
+                return $host === $domain || str_ends_with($host, '.'.$domain);
+            });
+
+            if (! $allowed) {
+                return response()->json([
+                    'error' => 'API key is not authorized for this domain.',
+                ], 403);
             }
         }
 
