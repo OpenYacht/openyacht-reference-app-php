@@ -5,8 +5,10 @@ import ListingCard from '@/components/ListingCard.vue';
 import type { ListingBadge } from '@/components/ListingCard.vue';
 import type { ListingFilters } from '@/components/ListingFilterBar.vue';
 import ListingIndexShell from '@/components/ListingIndexShell.vue';
+import PartnerListingsTabs from '@/components/PartnerListingsTabs.vue';
 import type { CharterRate } from '@/lib/listingPrice';
 import { formatListingPrice } from '@/lib/listingPrice';
+import { partnerListingsLabel } from '@/lib/partnerListings';
 import { index as charterIndex } from '@/routes/imported-charter-yachts';
 import { destroy, index, show } from '@/routes/imported-yachts';
 
@@ -40,16 +42,16 @@ const props = defineProps<{
     yachts: ImportedYacht[];
 }>();
 
-const title = computed(() =>
-    props.listingType === 'charter'
-        ? 'Imported charter yachts'
-        : 'Imported sale yachts',
-);
+const title = computed(() => partnerListingsLabel(props.listingType));
 
 setLayoutProps({
     breadcrumbs: [
         {
             title: title.value,
+            href: props.listingType === 'charter' ? charterIndex() : index(),
+        },
+        {
+            title: 'Imported',
             href: props.listingType === 'charter' ? charterIndex() : index(),
         },
     ],
@@ -104,7 +106,7 @@ const removeImport = (yacht: ImportedYacht) => {
 </script>
 
 <template>
-    <Head :title="title" />
+    <Head :title="`${title} — imported`" />
 
     <ListingIndexShell
         :title="title"
@@ -113,8 +115,11 @@ const removeImport = (yacht: ImportedYacht) => {
         :filters="filters"
         :categories="categories"
         :has-results="yachts.length > 0"
-        empty="Nothing imported found. Pick listings to display from the synced listings page."
+        empty="Nothing imported found. Pick listings to display from the Synced tab."
     >
+        <template #tabs>
+            <PartnerListingsTabs :listing-type="listingType" stage="imported" />
+        </template>
         <ListingCard
             v-for="yacht in yachts"
             :key="yacht.id"

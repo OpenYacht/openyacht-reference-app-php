@@ -5,6 +5,10 @@ import { computed } from 'vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
 import { useInitials } from '@/composables/useInitials';
+import {
+    lastPartnerListingsStage,
+    partnerListingsIndex,
+} from '@/lib/partnerListings';
 import { toUrl } from '@/lib/utils';
 import { dashboard, logout } from '@/routes';
 import { index as apiKeysIndex } from '@/routes/api-keys';
@@ -56,28 +60,30 @@ const mainNavItems = computed<NavigationMenuItem[]>(() => [
     ...(page.props.auth.canViewPartnerListings
         ? [
               {
-                  label: 'Imported sale',
+                  label: 'Partner sale',
                   icon: 'i-lucide-ship',
-                  to: toUrl(importedYachtsIndex()),
-                  active: isCurrentUrl(importedYachtsIndex()),
+                  to: toUrl(
+                      partnerListingsIndex(
+                          'sale',
+                          lastPartnerListingsStage('sale'),
+                      ),
+                  ),
+                  active:
+                      isCurrentUrl(syncedListingsIndex()) ||
+                      isCurrentUrl(importedYachtsIndex()),
               },
               {
-                  label: 'Imported charter',
+                  label: 'Partner charter',
                   icon: 'i-lucide-life-buoy',
-                  to: toUrl(importedCharterYachtsIndex()),
-                  active: isCurrentUrl(importedCharterYachtsIndex()),
-              },
-              {
-                  label: 'Synced sale',
-                  icon: 'i-lucide-refresh-cw',
-                  to: toUrl(syncedListingsIndex()),
-                  active: isCurrentUrl(syncedListingsIndex()),
-              },
-              {
-                  label: 'Synced charter',
-                  icon: 'i-lucide-refresh-ccw-dot',
-                  to: toUrl(syncedCharterListingsIndex()),
-                  active: isCurrentUrl(syncedCharterListingsIndex()),
+                  to: toUrl(
+                      partnerListingsIndex(
+                          'charter',
+                          lastPartnerListingsStage('charter'),
+                      ),
+                  ),
+                  active:
+                      isCurrentUrl(syncedCharterListingsIndex()) ||
+                      isCurrentUrl(importedCharterYachtsIndex()),
               },
           ]
         : []),
@@ -164,7 +170,7 @@ const userMenuItems = computed<DropdownMenuItem[][]>(() => [
                 :href="dashboard()"
                 class="flex items-center gap-2 overflow-hidden"
             >
-                <AppLogoIcon class="size-6 shrink-0 fill-current" />
+                <AppLogoIcon class="h-6 w-auto shrink-0" />
                 <span
                     v-if="!collapsed"
                     class="truncate text-sm font-semibold"

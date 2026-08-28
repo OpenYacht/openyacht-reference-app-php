@@ -75,8 +75,12 @@ const props = defineProps<{
 setLayoutProps({
     breadcrumbs: [
         props.copy.type === 'charter'
-            ? { title: 'Synced charter listings', href: charterIndex() }
-            : { title: 'Synced sale listings', href: index() },
+            ? { title: 'Partner charter', href: charterIndex() }
+            : { title: 'Partner sale', href: index() },
+        {
+            title: 'Synced',
+            href: props.copy.type === 'charter' ? charterIndex() : index(),
+        },
         { title: props.copy.name ?? 'Unnamed', href: show(props.copy.id) },
     ],
 });

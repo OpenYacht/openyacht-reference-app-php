@@ -68,8 +68,12 @@ const props = defineProps<{
 setLayoutProps({
     breadcrumbs: [
         props.yacht.type === 'charter'
-            ? { title: 'Imported charter yachts', href: charterIndex() }
-            : { title: 'Imported sale yachts', href: index() },
+            ? { title: 'Partner charter', href: charterIndex() }
+            : { title: 'Partner sale', href: index() },
+        {
+            title: 'Imported',
+            href: props.yacht.type === 'charter' ? charterIndex() : index(),
+        },
         { title: props.yacht.name, href: show(props.yacht.id) },
     ],
 });

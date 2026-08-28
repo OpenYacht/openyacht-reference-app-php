@@ -5,8 +5,10 @@ import ListingCard from '@/components/ListingCard.vue';
 import type { ListingBadge } from '@/components/ListingCard.vue';
 import type { ListingFilters } from '@/components/ListingFilterBar.vue';
 import ListingIndexShell from '@/components/ListingIndexShell.vue';
+import PartnerListingsTabs from '@/components/PartnerListingsTabs.vue';
 import type { CharterRate } from '@/lib/listingPrice';
 import { formatListingPrice } from '@/lib/listingPrice';
+import { partnerListingsLabel } from '@/lib/partnerListings';
 import { store as importCopy } from '@/routes/imported-yachts';
 import { index as charterIndex } from '@/routes/synced-charter-listings';
 import { index, show } from '@/routes/synced-listings';
@@ -40,16 +42,16 @@ const props = defineProps<{
     copies: Copy[];
 }>();
 
-const title = computed(() =>
-    props.listingType === 'charter'
-        ? 'Synced charter listings'
-        : 'Synced sale listings',
-);
+const title = computed(() => partnerListingsLabel(props.listingType));
 
 setLayoutProps({
     breadcrumbs: [
         {
             title: title.value,
+            href: props.listingType === 'charter' ? charterIndex() : index(),
+        },
+        {
+            title: 'Synced',
             href: props.listingType === 'charter' ? charterIndex() : index(),
         },
     ],
@@ -94,7 +96,7 @@ const badges = (copy: Copy): ListingBadge[] => [
 </script>
 
 <template>
-    <Head :title="title" />
+    <Head :title="`${title} — synced`" />
 
     <ListingIndexShell
         :title="title"
@@ -105,6 +107,9 @@ const badges = (copy: Copy): ListingBadge[] => [
         :has-results="copies.length > 0"
         empty="Nothing synced found. Once a partner is approved and synced, their shared listings appear here."
     >
+        <template #tabs>
+            <PartnerListingsTabs :listing-type="listingType" stage="synced" />
+        </template>
         <ListingCard
             v-for="copy in copies"
             :key="copy.id"

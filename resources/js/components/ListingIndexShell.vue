@@ -25,6 +25,8 @@ defineProps<{
             <slot name="actions" />
         </div>
 
+        <slot name="tabs" />
+
         <ListingFilterBar
             :initial="filters"
             :categories="categories"
