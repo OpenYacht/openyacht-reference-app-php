@@ -66,6 +66,12 @@ test('security page renders without two factor when feature is disabled', functi
         );
 });
 
+test('the well-known change-password URL redirects to the security page', function () {
+    $this->get('/.well-known/change-password')
+        ->assertStatus(303)
+        ->assertRedirect(route('security.edit'));
+});
+
 test('password can be updated', function () {
     $user = User::factory()->create();
 

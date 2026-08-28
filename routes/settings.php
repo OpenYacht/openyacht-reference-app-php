@@ -26,6 +26,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('settings/appearance', 'settings/Appearance')->name('appearance.edit');
 });
 
+/**
+ * W3C "A Well-Known URL for Changing Passwords": browsers and password
+ * managers follow this redirect straight to the password change screen,
+ * e.g. when prompting a user to replace a weak or leaked password.
+ */
+Route::get('.well-known/change-password', function () {
+    return to_route('security.edit', status: 303);
+})->name('well-known.change-password');
+
 Route::get('.well-known/passkey-endpoints', function () {
     return response()->json([
         'enroll' => route('security.edit'),
