@@ -168,7 +168,7 @@ test('a pinned partner may only present the pinned key', function () {
     FederationPartner::factory()->verified()->create([
         'domain' => SENDER,
         'keys_json' => senderWellKnown($this->keypair)['keys'],
-        'pinned_key_id' => 'ffffffffffffffff',
+        'pinned_key_id' => 'fe06271acc7d35b9',
     ]);
 
     senderGet($this, '/openyacht/v1/listings')

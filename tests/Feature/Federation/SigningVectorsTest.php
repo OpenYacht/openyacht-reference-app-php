@@ -191,7 +191,7 @@ test('negative 5: a key ID absent from the published keys is rejected as signatu
         pathWithQuery: VECTOR_1_PATH,
         receivingHost: 'receiver.example',
         rawBody: '',
-        senderKeyId: 'ffffffffffffffff',
+        senderKeyId: 'fe06271acc7d35b9',
         timestamp: VECTOR_1_TIMESTAMP,
         signature: VECTOR_1_SIGNATURE,
         publishedKeys: vectorPublishedKeys(),

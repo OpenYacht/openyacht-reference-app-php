@@ -39,6 +39,14 @@ class PartnerService
             'last_ok_at' => now(),
         ]);
 
+        // Arm the trust-on-first-use pin to the key the partner signs
+        // with now (FP-12). Until an administrator confirms a rotation,
+        // this is the only key the verifier will accept — so a later
+        // silent key swap by whoever controls the partner's well-known
+        // document is rejected, not trusted. Computed from the stored
+        // keys via the model so there is one source of truth.
+        $partner->update(['pinned_key_id' => $partner->currentSigningKeyId()]);
+
         activity('federation')
             ->performedOn($partner)
             ->withProperties(['domain' => $domain])
@@ -135,6 +143,9 @@ class PartnerService
         $partner->update([
             'trust_level' => TrustLevel::Verified,
             'approved_by_user_id' => $approvedBy->id,
+            // Establish the pin if a partner predates pin-arming at first
+            // contact; approval is the human "I trust this partner" moment.
+            'pinned_key_id' => $partner->pinned_key_id ?? $partner->currentSigningKeyId(),
         ]);
 
         activity('federation')

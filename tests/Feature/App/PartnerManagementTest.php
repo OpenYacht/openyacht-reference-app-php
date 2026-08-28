@@ -37,7 +37,7 @@ test('a partner can be added by domain through the UI', function () {
         'openyacht.partner.example/.well-known/openyacht' => Http::response([
             'openyacht' => '1.0',
             'node' => ['uuid' => '018f0000-0000-7000-8000-000000000001', 'name' => 'Partner'],
-            'keys' => [['key_id' => 'a1b2c3d4e5f60718', 'public_key' => base64_encode(str_repeat('k', 32))]],
+            'keys' => [['key_id' => '5e318f8cf9cbe249', 'public_key' => base64_encode(str_repeat('k', 32))]],
         ]),
     ]);
 
@@ -108,7 +108,7 @@ test('a directory entry is added as a partner through the same TOFU path', funct
         'openyacht.partner.example/.well-known/openyacht' => Http::response([
             'openyacht' => '1.0',
             'node' => ['uuid' => '018f0000-0000-7000-8000-000000000001', 'name' => 'Partner'],
-            'keys' => [['key_id' => 'a1b2c3d4e5f60718', 'public_key' => base64_encode(str_repeat('k', 32))]],
+            'keys' => [['key_id' => '5e318f8cf9cbe249', 'public_key' => base64_encode(str_repeat('k', 32))]],
         ]),
     ]);
 
@@ -123,7 +123,7 @@ test('a directory entry is added as a partner through the same TOFU path', funct
 
     expect($partner)->not->toBeNull()
         ->and($partner->trust_level)->toBe(TrustLevel::Provisional)
-        ->and($partner->publishedKeys())->toHaveKey('a1b2c3d4e5f60718');
+        ->and($partner->publishedKeys())->toHaveKey('5e318f8cf9cbe249');
 })->group('FP-16');
 
 test('a domain outside the directory cannot be added through the directory path', function () {
