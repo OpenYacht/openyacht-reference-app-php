@@ -105,7 +105,7 @@ REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 ```
 
-The queue is where this matters most: the database driver adds up to three seconds of latency to every media import and federation notification and writes to MySQL continuously while idle. Nothing in the protocol depends on the choice, and `database` remains a valid configuration — a node that would rather not run Redis simply omits it and skips this block. Changing `SESSION_DRIVER` invalidates existing sessions, so switch it during a maintenance window rather than under load, and restart both the FPM pool and the queue worker afterwards so they pick up the new drivers.
+The queue is where this matters most: the database driver adds up to three seconds of latency to every media import and federation notification and writes to MySQL continuously while idle. Nothing in the protocol depends on the choice, and `database` remains a valid configuration — a node that would rather not run Redis simply omits it and skips this block. Changing `SESSION_DRIVER` invalidates existing sessions, so switch it during a maintenance window rather than under load, and restart both the FPM pool and the queue worker afterwards so they pick up the new drivers. Restart the worker through supervisor (`supervisorctl restart <instance>-worker`), not `artisan queue:restart` — that command signals workers through the cache, and when the switch changes `CACHE_STORE` itself the running worker is still watching the old store and never sees the signal.
 
 Give each instance its own FPM pool, running as `deployer`, so a second node gets its own pool and socket beside this one:
 
@@ -179,7 +179,7 @@ Run `supervisorctl update` only after the first deploy has created `current/`, o
 
 Then, from a checkout: `DEPLOY_HOST=your.domain vendor/bin/dep deploy test`. Deployer needs PHP 8.4+ locally (the lockfile's floor) and shells out to `ssh`, so run it from a Unix shell — Windows OpenSSH implements no `ControlMaster`, and Deployer's default connection multiplexing fails there on every task with `getsockname failed: Not a socket`; from Windows, pass `-o ssh_multiplexing=false`. Point the connection at its key with an `~/.ssh/config` entry rather than editing `deploy.php`, which deliberately carries no one's local paths.
 
-The first run stops at the missing shared `.env`. Create it at `{{deploy_path}}/shared/.env` (`APP_KEY` via `php artisan key:generate --show`, database credentials, the `OPENYACHT_*` identity variables, Brevo mail), deploy again, then inside `current/` run once:
+The first run stops at the missing shared `.env`. Create it at `{{deploy_path}}/shared/.env` (`APP_KEY` via `php artisan key:generate --show`, database credentials, the `OPENYACHT_*` identity variables, Brevo mail, **and the Redis driver block above** — the provisioning script installed Redis for exactly this; leave it out and the node silently runs cache, sessions, and queue on MySQL forever), deploy again, then inside `current/` run once:
 
 ```bash
 php artisan db:seed --class=RoleSeeder --force     # deploys migrate but never seed
