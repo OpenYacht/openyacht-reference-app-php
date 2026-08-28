@@ -192,7 +192,7 @@ Vue components must have a single root element.
 
 This is the **OpenYacht PHP reference app** — reference material first, installable product second. It exists so a developer (or AI coding agent) can see a complete, conventional, working OpenYacht federation node and lift the patterns into their own system. Every architectural choice serves readability of the *protocol mechanics*; cleverness is a defect. Boring, idiomatic Laravel: thin controllers, explicit service classes, no bespoke abstractions where a framework convention exists.
 
-- **Normative source**: the protocol repo at `C:\laragon\www\openyacht` (WSL: `/mnt/c/laragon/www/openyacht`). The spec in `docs/spec/` is authoritative; this app implements it. The build plan is `docs/implementation/reference-app-php-plan.md`.
+- **Normative source**: the OpenYacht federation protocol specification at [github.com/OpenYacht/protocol](https://github.com/OpenYacht/protocol). The spec is authoritative; this app implements it.
 - **Spec cross-references in docblocks** at the point of implementation (e.g. `// federation-protocol.md §Request Signing`) so a reader lands in the right normative text from any file.
 - **Conformance-ID test convention**: every federation behaviour gets a Pest test grouped by its conformance ID from the spec's conformance checklist (`->group('FP-7')`, `->group('API-3')`, `->group('LS-8')`…). The test suite *is* the self-certification.
 
@@ -208,33 +208,10 @@ This is the **OpenYacht PHP reference app** — reference material first, instal
 
 ## 💻 Development Environment
 
-Windows with WSL2. The web app runs under **Laragon** (Windows); Claude Code runs in WSL2.
+- **PHP 8.4+** with the `sodium` extension (required for Ed25519 signing), Composer, and Node with **pnpm**.
+- **Database**: SQLite (`database/database.sqlite`) is the zero-config default; MySQL 8 and MariaDB are supported and CI-enforced (see the cross-database rule above).
+- **Commands**: standard Laravel/Vite — `composer install`, `pnpm install && pnpm build`, `php artisan test`, `vendor/bin/pint`. Before finishing any change run `composer preflight` (the CI-equivalent aggregate: fixers, then format check, `vue-tsc`, PHPStan, and the full Pest suite on SQLite).
+- The full setup and deployment recipe is in the [README](README.md).
 
-- **PHP**: `C:\laragon\bin\php\php-8.4\php.exe` (WSL: `/mnt/c/laragon/bin/php/php-8.4/php.exe`). The `sodium` extension is enabled (required for Ed25519 signing).
-- **App URL**: `https://openyacht-reference-app-php.test` (Laragon auto-vhost)
-- **Database**: SQLite (`database/database.sqlite`) as default; MySQL via Laragon supported.
-- **Frontend package manager**: **pnpm**, run on Windows.
-
-### Running Commands
-
-Artisan / Pint (from WSL):
-```bash
-/mnt/c/laragon/bin/php/php-8.4/php.exe artisan [command]
-/mnt/c/laragon/bin/php/php-8.4/php.exe vendor/bin/pint --dirty --format agent
-```
-
-Composer (Windows cmd.exe, explicit PHP 8.4 + phar):
-```bash
-cmd.exe /c "cd /d C:\laragon\www\openyacht-reference-app-php && C:\laragon\bin\php\php-8.4\php.exe C:\laragon\bin\composer\composer.phar [command] --no-interaction"
-```
-
-pnpm (**CRITICAL — Windows cmd.exe, NEVER in WSL2**; WSL-run installs break Vite permissions). Prefix PATH so child `php` calls resolve to 8.4:
-```bash
-cmd.exe /c "cd /d C:\laragon\www\openyacht-reference-app-php && set PATH=C:\laragon\bin\php\php-8.4;%PATH% && pnpm [install|build|dev|lint]"
-```
-
-Tests:
-```bash
-cmd.exe /c "cd /d C:\laragon\www\openyacht-reference-app-php && set PATH=C:\laragon\bin\php\php-8.4;%PATH% && php artisan test --compact"
-```
+> This repository is developed on Windows + WSL2 + Laragon. The exact local binary paths, shell invocations, and deploy commands for that setup live in `CLAUDE.local.md` (gitignored); a contributor on another OS uses the standard commands above.
 
