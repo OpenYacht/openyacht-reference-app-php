@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\ImportedMedia;
 use App\Models\ImportedYacht;
+use App\Services\Federation\OutboundUrlGuard;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Collection;
@@ -199,11 +200,14 @@ class ImportYachtMedia implements ShouldQueue
      */
     private function download(string $url, ?string $expectedSha256): string
     {
-        if (! Str::startsWith($url, 'https://')) {
-            throw new \RuntimeException('Media URLs must be https.');
-        }
+        // The media URL comes straight from the partner's payload, so it
+        // is untrusted: require a plain https URL to a public host (SSRF)
+        // and never follow a redirect that could bounce to a private host
+        // or plain HTTP (FP-14). A blocked URL is caught per-image by the
+        // caller and the image is skipped.
+        app(OutboundUrlGuard::class)->assertPublicHttpsUrl($url);
 
-        $response = Http::timeout(60)->get($url)->throw();
+        $response = Http::timeout(60)->withoutRedirecting()->get($url)->throw();
 
         if (! Str::startsWith($response->header('Content-Type'), 'image/')) {
             throw new \RuntimeException('The media URL did not return an image.');

@@ -14,11 +14,14 @@ use Illuminate\Support\Facades\Http;
  */
 class SignedClient
 {
-    public function __construct(private Signer $signer) {}
+    public function __construct(private Signer $signer, private OutboundUrlGuard $guard) {}
 
     public function get(FederationPartner $partner, string $pathWithQuery): Response
     {
+        $this->guard->assertPublicHost($partner->domain);
+
         return Http::timeout(30)
+            ->withoutRedirecting()
             ->withHeaders($this->signer->headers('GET', $pathWithQuery, $partner->domain))
             ->get("https://{$partner->domain}{$pathWithQuery}");
     }
@@ -28,9 +31,12 @@ class SignedClient
      */
     public function post(FederationPartner $partner, string $pathWithQuery, array $payload): Response
     {
+        $this->guard->assertPublicHost($partner->domain);
+
         $rawBody = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
         return Http::timeout(30)
+            ->withoutRedirecting()
             ->withHeaders($this->signer->headers('POST', $pathWithQuery, $partner->domain, $rawBody))
             ->withBody($rawBody, 'application/json')
             ->post("https://{$partner->domain}{$pathWithQuery}");
