@@ -210,4 +210,4 @@ Cross-database parity is enforced: both lanes run in CI, and engine-specific tra
 
 ## License
 
-MIT.
+[AGPL-3.0-only](LICENSE). Run it, study it, lift the patterns — and if you operate a modified version as a network service, share your changes the same way.
