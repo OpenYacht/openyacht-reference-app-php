@@ -9,6 +9,16 @@ import { dashboard, login } from '@/routes';
         <div
             class="flex min-h-screen flex-col items-center justify-center gap-6 p-6"
         >
+            <img
+                src="/brand/openyacht-lockup-stacked.svg"
+                alt=""
+                class="h-28 w-auto dark:hidden"
+            />
+            <img
+                src="/brand/openyacht-lockup-stacked-reversed.svg"
+                alt=""
+                class="hidden h-28 w-auto dark:block"
+            />
             <h1 class="text-2xl font-semibold">OpenYacht Reference App</h1>
             <p class="max-w-md text-center text-sm text-muted">
                 A complete, conventional implementation of the OpenYacht

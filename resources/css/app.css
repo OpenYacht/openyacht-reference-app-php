@@ -13,6 +13,82 @@
         'Noto Color Emoji';
 }
 
+/*
+ * `static` because Nuxt UI consumes these ramps at runtime via
+ * var(--color-signal-blue-500) etc.; Tailwind cannot see those
+ * references and would otherwise tree-shake the variables away.
+ */
+@theme static {
+    /*
+     * OpenYacht brand palette (openyacht repo, docs/branding.md).
+     *
+     * The locker colours (signal-red, signal-yellow, signal-blue, ink,
+     * cloth, ivory) are canonical; each ramp anchors its brand hex
+     * VERBATIM at the perceptually matching shade and derives the other
+     * shades at the same oklch hue. Nuxt UI solids use 500 (light mode)
+     * and 400 (dark mode) — see the alias mapping in vite.config.ts.
+     */
+    --color-ink: #14181f;
+    --color-cloth: #f5f3ee;
+    --color-ivory: #f1efe6;
+
+    /* signal-blue, hue 264 — brand hex #0f2d79 verbatim at 900. */
+    --color-signal-blue-50: oklch(97% 0.014 264);
+    --color-signal-blue-100: oklch(93.5% 0.03 264);
+    --color-signal-blue-200: oklch(88.5% 0.06 264);
+    --color-signal-blue-300: oklch(80% 0.1 264);
+    --color-signal-blue-400: oklch(68% 0.15 264);
+    --color-signal-blue-500: oklch(57% 0.19 264);
+    --color-signal-blue-600: oklch(50% 0.2 264);
+    --color-signal-blue-700: oklch(44% 0.185 264);
+    --color-signal-blue-800: oklch(39% 0.16 264);
+    --color-signal-blue-900: #0f2d79;
+    --color-signal-blue-950: oklch(26% 0.1 264);
+
+    /* signal-red, hue 22 — brand hex #c30b2d verbatim at 700. */
+    --color-signal-red-50: oklch(97.1% 0.013 22);
+    --color-signal-red-100: oklch(93.5% 0.032 22);
+    --color-signal-red-200: oklch(88.5% 0.062 20);
+    --color-signal-red-300: oklch(80.5% 0.115 20);
+    --color-signal-red-400: oklch(70.5% 0.19 21);
+    --color-signal-red-500: oklch(63.5% 0.235 22);
+    --color-signal-red-600: oklch(57.5% 0.24 22);
+    --color-signal-red-700: #c30b2d;
+    --color-signal-red-800: oklch(44.5% 0.175 22);
+    --color-signal-red-900: oklch(39.5% 0.14 23);
+    --color-signal-red-950: oklch(25.8% 0.09 23);
+
+    /* signal-yellow, hue 92 — brand hex #fecf16 verbatim at 400;
+       deeper shades drift amberward like Tailwind's yellow so text
+       stays legible on them. */
+    --color-signal-yellow-50: oklch(98.7% 0.026 95);
+    --color-signal-yellow-100: oklch(97.3% 0.071 95);
+    --color-signal-yellow-200: oklch(94.5% 0.124 95);
+    --color-signal-yellow-300: oklch(90.5% 0.16 93);
+    --color-signal-yellow-400: #fecf16;
+    --color-signal-yellow-500: oklch(79.5% 0.16 88);
+    --color-signal-yellow-600: oklch(68% 0.14 80);
+    --color-signal-yellow-700: oklch(55.4% 0.115 75);
+    --color-signal-yellow-800: oklch(47.6% 0.096 74);
+    --color-signal-yellow-900: oklch(42.1% 0.08 74);
+    --color-signal-yellow-950: oklch(28.6% 0.055 74);
+
+    /* starboard, hue 155 — the ICS locker has no green, so success uses
+       the green of a starboard running light: drawn to complement the
+       locker (chroma matched to signal-blue), not a locker colour. */
+    --color-starboard-50: oklch(97.5% 0.02 155);
+    --color-starboard-100: oklch(94.5% 0.045 155);
+    --color-starboard-200: oklch(89.5% 0.08 155);
+    --color-starboard-300: oklch(82% 0.115 155);
+    --color-starboard-400: oklch(72% 0.14 155);
+    --color-starboard-500: oklch(62% 0.135 155);
+    --color-starboard-600: oklch(53% 0.12 155);
+    --color-starboard-700: oklch(46% 0.1 156);
+    --color-starboard-800: oklch(40% 0.085 157);
+    --color-starboard-900: oklch(35% 0.07 158);
+    --color-starboard-950: oklch(24% 0.05 160);
+}
+
 /* Nuxt UI recommends stacking isolation on the app root (docs: installation/vue). */
 #app {
     isolation: isolate;

@@ -36,9 +36,16 @@ export default defineConfig({
             // fight it and strip the class on mount.
             colorMode: false,
             ui: {
-                // Matches the openyacht.org signal-blue branding.
+                // Brand ramps defined in resources/css/app.css @theme
+                // (openyacht repo, docs/branding.md). The ICS locker has
+                // no green, so success uses the complementary starboard
+                // ramp rather than a recoloured locker value.
                 colors: {
-                    primary: 'blue',
+                    primary: 'signal-blue',
+                    info: 'signal-blue',
+                    error: 'signal-red',
+                    warning: 'signal-yellow',
+                    success: 'starboard',
                 },
             },
         }),
