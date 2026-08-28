@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Role;
+use App\Http\Controllers\App\ActivityLogController;
 use App\Http\Controllers\App\ApiKeyController;
 use App\Http\Controllers\App\CharterYachtController;
 use App\Http\Controllers\App\DashboardController;
@@ -57,6 +58,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
     Route::put('api-keys/{apiKey}', [ApiKeyController::class, 'update'])->name('api-keys.update');
     Route::delete('api-keys/{apiKey}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
+
+    Route::get('activity-log', [ActivityLogController::class, 'index'])->name('activity-log.index');
+    Route::put('activity-log/retention', [ActivityLogController::class, 'updateRetention'])->name('activity-log.retention.update');
+    Route::post('activity-log/prune', [ActivityLogController::class, 'prune'])->name('activity-log.prune');
 
     Route::get('yachts', [YachtController::class, 'index'])->name('yachts.index');
     Route::get('yachts/create', [YachtController::class, 'create'])->name('yachts.create');

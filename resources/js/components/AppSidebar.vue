@@ -11,6 +11,7 @@ import {
 } from '@/lib/partnerListings';
 import { toUrl } from '@/lib/utils';
 import { dashboard, logout } from '@/routes';
+import { index as activityLogIndex } from '@/routes/activity-log';
 import { index as apiKeysIndex } from '@/routes/api-keys';
 import { index as charterYachtsIndex } from '@/routes/charter-yachts';
 import { index as importedCharterYachtsIndex } from '@/routes/imported-charter-yachts';
@@ -110,6 +111,12 @@ const mainNavItems = computed<NavigationMenuItem[]>(() => [
                   icon: 'i-lucide-key-round',
                   to: toUrl(apiKeysIndex()),
                   active: isCurrentUrl(apiKeysIndex()),
+              },
+              {
+                  label: 'Activity log',
+                  icon: 'i-lucide-scroll-text',
+                  to: toUrl(activityLogIndex()),
+                  active: isCurrentUrl(activityLogIndex()),
               },
           ]
         : []),

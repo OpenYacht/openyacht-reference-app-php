@@ -12,3 +12,6 @@ Artisan::command('inspire', function () {
 // obligation (ID-7); per-partner failure backoff is handled inside the
 // command. // api-design.md §Listings
 Schedule::command('openyacht:sync')->hourly();
+
+// Enforce the activity-log retention window daily (0 days = keep forever).
+Schedule::command('openyacht:prune-activity-log')->daily();
