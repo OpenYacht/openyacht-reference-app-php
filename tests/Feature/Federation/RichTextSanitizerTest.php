@@ -46,3 +46,19 @@ test('images and iframes never survive', function () {
     expect(sanitize('<p>Text</p><img src="https://x.example/a.jpg"><iframe src="https://x.example"></iframe>'))
         ->toBe('<p>Text</p>');
 })->group('LS-5');
+
+test('html comments are dropped so comment-boundary mXSS cannot smuggle live markup', function () {
+    // libxml (this parser) and the browser's HTML5 tokenizer disagree on
+    // where a comment ends; passing comments through verbatim let an
+    // abrupt-close payload reintroduce an executing element. Comments are
+    // now removed outright, so nothing survives to be re-parsed.
+    expect(sanitize('<p>Beautiful.</p><!--><img src=x onerror=alert(1)>-->'))
+        ->not->toContain('<img')
+        ->not->toContain('onerror')
+        ->not->toContain('<!--');
+
+    expect(sanitize('<!---><svg onload=alert(1)>-->'))->toBe('');
+
+    expect(sanitize('<p>a<!--[if]><img src=x onerror=alert(1)>-->b</p>'))
+        ->toBe('<p>ab</p>');
+})->group('LS-5');
