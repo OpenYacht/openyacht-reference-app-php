@@ -522,55 +522,6 @@ const trustColor = (level: string) =>
             </div>
         </UCard>
 
-        <UCard>
-            <template #header>
-                <div>
-                    <h3 class="font-semibold">Import types</h3>
-                    <p class="mt-0.5 text-xs text-muted">
-                        Which of this partner's listing types are published or
-                        reach the review queue. Copies of the excluded type are
-                        still synced and stored, but never surface.
-                    </p>
-                </div>
-            </template>
-            <div class="space-y-4">
-                <fieldset class="space-y-2">
-                    <label
-                        v-for="option in availableImportTypes"
-                        :key="option.value"
-                        class="flex cursor-pointer items-start gap-2 rounded-md border border-default p-3"
-                        :class="{
-                            'border-primary bg-primary/5':
-                                importTypes === option.value,
-                        }"
-                    >
-                        <input
-                            v-model="importTypes"
-                            type="radio"
-                            name="import_types"
-                            :value="option.value"
-                            class="mt-1"
-                        />
-                        <span>
-                            <span class="block text-sm font-medium">{{
-                                option.label
-                            }}</span>
-                            <span class="block text-xs text-muted">{{
-                                option.hint
-                            }}</span>
-                        </span>
-                    </label>
-                </fieldset>
-                <div class="flex justify-end">
-                    <UButton
-                        label="Save import types"
-                        :loading="savingImportTypes"
-                        @click="saveImportTypes"
-                    />
-                </div>
-            </div>
-        </UCard>
-
         <UCard v-if="partner.sharing_scope === 'curated' && sharedListings">
             <template #header>
                 <div>
@@ -708,6 +659,55 @@ const trustColor = (level: string) =>
                         label="Save shared listings"
                         :loading="savingShares"
                         @click="saveShares"
+                    />
+                </div>
+            </div>
+        </UCard>
+
+        <UCard>
+            <template #header>
+                <div>
+                    <h3 class="font-semibold">Import types</h3>
+                    <p class="mt-0.5 text-xs text-muted">
+                        Which of this partner's listing types are published or
+                        reach the review queue. Copies of the excluded type are
+                        still synced and stored, but never surface.
+                    </p>
+                </div>
+            </template>
+            <div class="space-y-4">
+                <fieldset class="space-y-2">
+                    <label
+                        v-for="option in availableImportTypes"
+                        :key="option.value"
+                        class="flex cursor-pointer items-start gap-2 rounded-md border border-default p-3"
+                        :class="{
+                            'border-primary bg-primary/5':
+                                importTypes === option.value,
+                        }"
+                    >
+                        <input
+                            v-model="importTypes"
+                            type="radio"
+                            name="import_types"
+                            :value="option.value"
+                            class="mt-1"
+                        />
+                        <span>
+                            <span class="block text-sm font-medium">{{
+                                option.label
+                            }}</span>
+                            <span class="block text-xs text-muted">{{
+                                option.hint
+                            }}</span>
+                        </span>
+                    </label>
+                </fieldset>
+                <div class="flex justify-end">
+                    <UButton
+                        label="Save import types"
+                        :loading="savingImportTypes"
+                        @click="saveImportTypes"
                     />
                 </div>
             </div>
