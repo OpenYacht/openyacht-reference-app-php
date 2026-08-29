@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Enums\TrustLevel;
 use App\Models\FederationPartner;
+use App\Services\ChangeNotifier;
 use App\Services\Federation\PartnerAwaitingApproval;
 use App\Services\Federation\SyncService;
 use Illuminate\Console\Command;
@@ -34,7 +35,7 @@ class OpenYachtSync extends Command
      */
     protected $description = 'Sync listings from federation partners';
 
-    public function handle(SyncService $sync): int
+    public function handle(SyncService $sync, ChangeNotifier $notifier): int
     {
         $partners = FederationPartner::query()
             ->where('trust_level', '!=', TrustLevel::Blocked)
@@ -48,6 +49,7 @@ class OpenYachtSync extends Command
         }
 
         $failures = 0;
+        $changed = [];
 
         foreach ($partners as $partner) {
             if (! $this->option('force') && ! $sync->isDue($partner)) {
@@ -60,6 +62,10 @@ class OpenYachtSync extends Command
                 $result = $sync->sync($partner);
 
                 $this->info("{$partner->domain}: {$result->created} created, {$result->updated} updated, {$result->tombstoned} tombstoned");
+
+                if ($result->created + $result->updated + $result->tombstoned > 0) {
+                    $changed[] = "sync:{$partner->domain} {$result->created} created, {$result->updated} updated, {$result->tombstoned} tombstoned";
+                }
             } catch (PartnerAwaitingApproval) {
                 // Not a failure: delivered, verified, and waiting on a
                 // human over there. Says so plainly, because the operator
@@ -69,6 +75,13 @@ class OpenYachtSync extends Command
                 $failures++;
                 $this->error("{$partner->domain}: sync failed — {$exception->getMessage()}");
             }
+        }
+
+        // One notification per applied sync cycle iff anything changed —
+        // never per partner or per listing, so a cold sync from a new
+        // partner is a single consumer rebuild.
+        if ($changed !== []) {
+            $notifier->notify(implode('; ', $changed));
         }
 
         return $failures === 0 ? self::SUCCESS : self::FAILURE;

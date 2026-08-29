@@ -117,4 +117,47 @@ return [
     // this long before 410 Gone (yacht-identity.md §Lifecycle).
     'terminal_retention_months' => 12,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Exchange Rates
+    |--------------------------------------------------------------------------
+    |
+    | The ECB daily reference rate feed powering the data API's
+    | cross-currency price search (query-time conversion — stored prices
+    | are never rewritten). Free and keyless; there is deliberately no
+    | fallback rate source, so a conversion either has a fetched rate or
+    | the API refuses it with an explicit error.
+    |
+    */
+
+    'exchange_rates' => [
+        'ecb_url' => env(
+            'OPENYACHT_ECB_RATES_URL',
+            'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml',
+        ),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Change Notifications
+    |--------------------------------------------------------------------------
+    |
+    | Generic outbound "content changed" pings for consumers that cache or
+    | pre-build this node's public output (e.g. a static-site deploy
+    | hook). Off unless URLs are configured. Fired once per applied sync
+    | cycle and on local edits that change public output — never per
+    | listing — and debounced by the cooldown; the POST body is minimal
+    | (timestamp, reason, counts) so consumers ask the data API for
+    | details. Vendor-neutral by design.
+    |
+    */
+
+    'change_notifications' => [
+        // Comma-separated list of URLs to POST to.
+        'urls' => array_filter(array_map('trim', explode(',', (string) env('OPENYACHT_CHANGE_NOTIFY_URLS', '')))),
+        // Optional shared secret, sent as the X-OpenYacht-Webhook-Secret header.
+        'secret' => env('OPENYACHT_CHANGE_NOTIFY_SECRET'),
+        'cooldown_minutes' => (int) env('OPENYACHT_CHANGE_NOTIFY_COOLDOWN', 15),
+    ],
+
 ];

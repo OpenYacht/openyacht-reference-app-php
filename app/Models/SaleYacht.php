@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\Audience;
 use App\Enums\ListingStatus;
 use App\Models\Concerns\FederatedListing;
+use App\Models\Concerns\SearchableByPrice;
 use Carbon\CarbonInterface;
 use Database\Factories\SaleYachtFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -80,6 +81,8 @@ class SaleYacht extends Model implements HasMedia
         FederatedListing::registerMediaConversions insteadof InteractsWithMedia;
     }
 
+    use SearchableByPrice;
+
     protected static function booted(): void
     {
         static::created(function (SaleYacht $yacht): void {
@@ -102,6 +105,7 @@ class SaleYacht extends Model implements HasMedia
     {
         return [
             'status' => ListingStatus::class,
+            'price_amount' => 'decimal:2',
             'price_on_application' => 'boolean',
             'starting_price' => 'boolean',
             'location_lat' => 'float',

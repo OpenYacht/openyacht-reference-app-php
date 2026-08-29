@@ -13,9 +13,20 @@ use App\Http\Controllers\App\RoleController;
 use App\Http\Controllers\App\SyncedListingController;
 use App\Http\Controllers\App\UserController;
 use App\Http\Controllers\App\YachtController;
+use App\Support\ApiDocs\ApiDocGenerator;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
+
+// Agent-facing data API guide, generated from code (config/api-docs.php)
+// so the endpoint, parameter and field tables never drift from the API.
+// The machine-readable OpenAPI spec lives alongside at /docs/api.json.
+Route::get('docs/api/{guide}.md', function (string $guide) {
+    return response(app(ApiDocGenerator::class)->generate($guide), 200, [
+        'Content-Type' => 'text/markdown; charset=UTF-8',
+        'Cache-Control' => 'public, max-age=300',
+    ]);
+})->whereIn('guide', ['yachts'])->name('docs.api.markdown');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');

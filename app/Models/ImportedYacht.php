@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ListingStatus;
+use App\Models\Concerns\SearchableByPrice;
 use Database\Factories\ImportedYachtFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -45,7 +46,7 @@ use Illuminate\Support\Carbon;
 class ImportedYacht extends Model
 {
     /** @use HasFactory<ImportedYachtFactory> */
-    use HasFactory;
+    use HasFactory, SearchableByPrice;
 
     /**
      * Get the attributes that should be cast.
@@ -58,6 +59,7 @@ class ImportedYacht extends Model
             'status' => ListingStatus::class,
             'year_built' => 'integer',
             'loa_m' => 'float',
+            'price_amount' => 'decimal:2',
             'media_synced_at' => 'datetime',
             'auto_published_at' => 'datetime',
         ];

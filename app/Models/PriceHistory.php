@@ -28,6 +28,7 @@ class PriceHistory extends Model
     protected function casts(): array
     {
         return [
+            'amount' => 'decimal:2',
             'changed_at' => 'datetime',
         ];
     }

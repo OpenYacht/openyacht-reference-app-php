@@ -2,9 +2,14 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use Carbon\CarbonImmutable;
+use Dedoc\Scramble\Scramble;
+use Dedoc\Scramble\Support\Generator\OpenApi;
+use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -35,6 +40,21 @@ class AppServiceProvider extends ServiceProvider
                 new Dsn('brevo+api', 'default', (string) config('services.brevo.key')),
             );
         });
+
+        // The data API's OpenAPI spec (/docs/api.json): AuthenticateApiKey
+        // accepts the key via the X-API-Key header, an Authorization
+        // Bearer token, or the api_key query param — document all three
+        // as alternatives.
+        Scramble::configure()
+            ->afterOpenApiGenerated(function (OpenApi $openApi): void {
+                $openApi->secure(SecurityScheme::apiKey('header', 'X-API-Key'));
+                $openApi->secure(SecurityScheme::http('bearer')->as('bearerToken'));
+                $openApi->secure(SecurityScheme::apiKey('query', 'api_key')->as('apiKeyQuery'));
+            });
+
+        // API docs are public: the API itself is the access boundary
+        // (keys, scopes, domain locks), the documentation is not.
+        Gate::define('viewApiDocs', fn (?User $user): bool => true);
     }
 
     /**

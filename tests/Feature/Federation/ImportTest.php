@@ -72,7 +72,7 @@ test('importing a copy projects its payload into queryable columns', function ()
         ->and($yacht->builder_name)->toBe('Benetti')
         ->and($yacht->year_built)->toBe(2021)
         ->and($yacht->loa_m)->toBe(40.8)
-        ->and($yacht->price_amount)->toBe('8500000')
+        ->and($yacht->price_amount)->toBe('8500000.00')
         ->and($yacht->price_currency)->toBe('EUR')
         ->and($yacht->location_display)->toBe('Palma de Mallorca, Spain')
         ->and($yacht->attribution_text)->toBe('Courtesy of Partner Brokerage');
@@ -219,7 +219,7 @@ test('a synced update refreshes the projection', function () {
 
     app(SyncService::class)->sync($partner);
 
-    expect($yacht->refresh()->price_amount)->toBe('7900000')
+    expect($yacht->refresh()->price_amount)->toBe('7900000.00')
         ->and($yacht->status)->toBe(ListingStatus::UnderOffer);
 })->group('ID-7');
 

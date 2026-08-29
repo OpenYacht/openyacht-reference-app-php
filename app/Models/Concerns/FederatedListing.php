@@ -6,6 +6,7 @@ use App\Enums\Audience;
 use App\Enums\ListingStatus;
 use App\Models\FederationPartner;
 use App\Models\PartnerGroup;
+use App\Services\ChangeNotifier;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -51,6 +52,53 @@ trait FederatedListing
 
             $yacht->federation_updated_at = now();
         });
+
+        // Local edits that change public output ping the outbound change
+        // notifier (consumers that pre-build from the data API rebuild).
+        // Only publicly served listings count — draft edits and
+        // audience-only changes (federation-facing, not public-facing)
+        // stay quiet. These hang off created/updated, not saved, because
+        // saved also fires for no-op saves with the previous save's
+        // change set still in place.
+        static::created(function (self $yacht): void {
+            if ($yacht->servesPublicOutput()) {
+                app(ChangeNotifier::class)->notify("listing:{$yacht->uuid} updated");
+            }
+        });
+
+        static::updated(function (self $yacht): void {
+            if (array_keys(array_diff_key($yacht->getChanges(), ['updated_at' => true])) === ['audience']) {
+                return;
+            }
+
+            if ($yacht->servesPublicOutput() || $yacht->servedPublicOutputBeforeSave()) {
+                app(ChangeNotifier::class)->notify("listing:{$yacht->uuid} updated");
+            }
+        });
+
+        static::deleted(function (self $yacht): void {
+            if ($yacht->servesPublicOutput()) {
+                app(ChangeNotifier::class)->notify("listing:{$yacht->uuid} removed");
+            }
+        });
+    }
+
+    /**
+     * Whether the listing currently appears in the public data API
+     * (which serves active and under-offer listings only).
+     */
+    public function servesPublicOutput(): bool
+    {
+        return in_array($this->status, [ListingStatus::Active, ListingStatus::UnderOffer], true);
+    }
+
+    private function servedPublicOutputBeforeSave(): bool
+    {
+        return in_array(
+            $this->getOriginal('status'),
+            [ListingStatus::Active, ListingStatus::UnderOffer],
+            true,
+        );
     }
 
     protected function initializeFederatedListing(): void

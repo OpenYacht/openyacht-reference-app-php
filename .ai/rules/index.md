@@ -11,5 +11,5 @@ Before planning or editing, find the row whose globs match the file's path and r
 | **/* | .ai/rules/general.md |
 | resources/js/** | .ai/rules/js.md |
 | database/migrations/** | .ai/rules/migrations.md |
-| app/Models/*.php | .ai/rules/models.md |
+| app/Models/*.php, app/Models/** | .ai/rules/models.md |
 | app/Services/Federation/** | .ai/rules/services-federation.md |

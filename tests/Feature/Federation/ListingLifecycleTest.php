@@ -63,9 +63,9 @@ test('price history is append-only, most recent first, first entry equals curren
     $history = $yacht->refresh()->priceHistory;
 
     expect($history)->toHaveCount(3)
-        ->and($history->first()->amount)->toBe('850000')
+        ->and($history->first()->amount)->toBe('850000.00')
         ->and($history->first()->amount)->toBe($yacht->price_amount)
-        ->and($history->pluck('amount')->all())->toBe(['850000', '900000', '1000000']);
+        ->and($history->pluck('amount')->all())->toBe(['850000.00', '900000.00', '1000000.00']);
 })->group('LS-10');
 
 test('a non-price edit does not append price history', function () {

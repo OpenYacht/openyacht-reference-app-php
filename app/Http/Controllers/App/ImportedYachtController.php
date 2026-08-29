@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ImportedMedia;
 use App\Models\ImportedYacht;
 use App\Models\ListingCopy;
+use App\Services\ChangeNotifier;
 use App\Services\Federation\CategoryVocabulary;
 use App\Services\Federation\ImportService;
 use App\Services\Federation\RichTextSanitizer;
@@ -168,7 +169,7 @@ class ImportedYachtController extends Controller
         ]);
     }
 
-    public function store(Request $request, ListingCopy $copy, ImportService $imports): RedirectResponse
+    public function store(Request $request, ListingCopy $copy, ImportService $imports, ChangeNotifier $notifier): RedirectResponse
     {
         Gate::authorize(Permission::ManageListings->value);
 
@@ -178,6 +179,8 @@ class ImportedYachtController extends Controller
             throw ValidationException::withMessages(['copy' => $exception->getMessage()]);
         }
 
+        $notifier->notify("import:{$copy->canonical_uri} imported");
+
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => __('listings.imported', ['name' => $copy->name ?? $copy->canonical_uri]),
@@ -186,12 +189,15 @@ class ImportedYachtController extends Controller
         return back();
     }
 
-    public function destroy(ImportedYacht $importedYacht, ImportService $imports): RedirectResponse
+    public function destroy(ImportedYacht $importedYacht, ImportService $imports, ChangeNotifier $notifier): RedirectResponse
     {
         Gate::authorize(Permission::ManageListings->value);
 
         $name = $importedYacht->name;
+        $uri = $importedYacht->copy->canonical_uri;
         $imports->remove($importedYacht);
+
+        $notifier->notify("import:{$uri} removed");
 
         Inertia::flash('toast', [
             'type' => 'success',

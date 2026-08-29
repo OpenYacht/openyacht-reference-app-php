@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\SyncExchangeRates;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -15,3 +16,7 @@ Schedule::command('openyacht:sync')->hourly();
 
 // Enforce the activity-log retention window daily (0 days = keep forever).
 Schedule::command('openyacht:prune-activity-log')->daily();
+
+// ECB reference rates publish once per working day (~16:00 CET); a daily
+// evening fetch keeps the data API's cross-currency price search current.
+Schedule::job(new SyncExchangeRates)->dailyAt('17:00');
