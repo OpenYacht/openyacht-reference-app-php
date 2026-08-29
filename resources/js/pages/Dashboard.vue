@@ -182,7 +182,7 @@ const statusColor = (status: string) =>
                 >
                     <Link
                         :href="listingHref(listing)"
-                        class="flex items-center gap-3 py-2.5 transition-colors first:pt-0 last:pb-0 hover:bg-elevated/40"
+                        class="flex items-center gap-3 py-3 transition-colors hover:bg-elevated/40"
                     >
                         <img
                             v-if="listing.thumbnail_url"
