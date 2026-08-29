@@ -5,6 +5,11 @@ export type ListingFilters = {
     category: string;
     loa_min: number | null;
     loa_max: number | null;
+    builder: string;
+    year_min: number | null;
+    year_max: number | null;
+    power_sail: string;
+    status: string;
 };
 </script>
 
@@ -24,6 +29,15 @@ const props = defineProps<{
     initial: ListingFilters;
     categories: { slug: string; name: string }[];
     placeholder?: string;
+    // Optional facets: a control renders only when its options are
+    // provided, so indexes that don't apply a filter never show it.
+    builders?: string[];
+    statuses?: { value: string; label: string }[];
+    showYearRange?: boolean;
+    showPowerSail?: boolean;
+    // Extra params carried through every visit unchanged — e.g. the
+    // partner picker's listing_type tab.
+    extra?: Record<string, string>;
 }>();
 
 // reka selects forbid empty-string values; 'all' is the no-filter sentinel.
@@ -33,6 +47,11 @@ const state = reactive({
     category: props.initial.category || 'all',
     loa_min: props.initial.loa_min,
     loa_max: props.initial.loa_max,
+    builder: props.initial.builder || 'all',
+    year_min: props.initial.year_min,
+    year_max: props.initial.year_max,
+    power_sail: props.initial.power_sail || 'all',
+    status: props.initial.status || 'all',
 });
 
 const categoryItems = [
@@ -43,6 +62,28 @@ const categoryItems = [
     })),
 ];
 
+const builderItems = [
+    { label: 'All builders', value: 'all' },
+    ...(props.builders ?? []).map((builder) => ({
+        label: builder,
+        value: builder,
+    })),
+];
+
+const statusItems = [
+    { label: 'All statuses', value: 'all' },
+    ...(props.statuses ?? []).map((status) => ({
+        label: status.label,
+        value: status.value,
+    })),
+];
+
+const powerSailItems = [
+    { label: 'Power & sail', value: 'all' },
+    { label: 'Power', value: 'power' },
+    { label: 'Sail', value: 'sail' },
+];
+
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 watch(state, () => {
@@ -51,7 +92,7 @@ watch(state, () => {
     }
 
     timer = setTimeout(() => {
-        const params: Record<string, string | number> = {};
+        const params: Record<string, string | number> = { ...props.extra };
 
         if (state.q.trim()) {
             params.q = state.q.trim();
@@ -73,6 +114,26 @@ watch(state, () => {
             params.loa_max = state.loa_max;
         }
 
+        if (state.builder !== 'all') {
+            params.builder = state.builder;
+        }
+
+        if (state.year_min !== null && state.year_min !== ('' as unknown)) {
+            params.year_min = state.year_min;
+        }
+
+        if (state.year_max !== null && state.year_max !== ('' as unknown)) {
+            params.year_max = state.year_max;
+        }
+
+        if (state.power_sail !== 'all') {
+            params.power_sail = state.power_sail;
+        }
+
+        if (state.status !== 'all') {
+            params.status = state.status;
+        }
+
         router.get(window.location.pathname, params, {
             preserveState: true,
             preserveScroll: true,
@@ -89,7 +150,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+    <div class="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
         <UInput
             v-model="state.q"
             icon="i-lucide-search"
@@ -109,6 +170,49 @@ onBeforeUnmount(() => {
             class="w-full lg:w-52"
             aria-label="Category"
         />
+        <USelectMenu
+            v-if="builders"
+            v-model="state.builder"
+            :items="builderItems"
+            value-key="value"
+            class="w-full lg:w-48"
+            aria-label="Builder"
+        />
+        <USelectMenu
+            v-if="statuses"
+            v-model="state.status"
+            :items="statusItems"
+            value-key="value"
+            class="w-full lg:w-44"
+            aria-label="Status"
+        />
+        <USelectMenu
+            v-if="showPowerSail"
+            v-model="state.power_sail"
+            :items="powerSailItems"
+            value-key="value"
+            class="w-full lg:w-36"
+            aria-label="Power or sail"
+        />
+        <div v-if="showYearRange" class="flex items-center gap-2">
+            <UInput
+                v-model.number="state.year_min"
+                type="number"
+                min="1800"
+                placeholder="Year from"
+                class="w-full lg:w-28"
+                aria-label="Built from year"
+            />
+            <span class="text-sm text-muted">–</span>
+            <UInput
+                v-model.number="state.year_max"
+                type="number"
+                min="1800"
+                placeholder="Year to"
+                class="w-full lg:w-28"
+                aria-label="Built to year"
+            />
+        </div>
         <div class="flex items-center gap-2">
             <UInput
                 v-model.number="state.loa_min"

@@ -141,12 +141,12 @@ test('the map picker uses mapbox only when a token is configured', function () {
 test('the yacht list can be searched and filtered', function () {
     $editor = yachtActor(Role::Editor);
 
-    $blue = SaleYacht::factory()->create([
+    $blue = SaleYacht::factory()->active()->create([
         'name' => 'BLUE HORIZON',
         'location_display' => 'Palma de Mallorca, Spain',
         'specifications' => ['power_or_sail' => 'power', 'category' => ['name' => 'Flybridge', 'slug' => 'flybridge']],
     ]);
-    $blue->vessel->update(['loa_m' => 42.0]);
+    $blue->vessel->update(['loa_m' => 42.0, 'builder_name' => 'Benetti', 'year_built' => 2020]);
 
     $sea = SaleYacht::factory()->create([
         'name' => 'SEA DREAM',
@@ -156,7 +156,7 @@ test('the yacht list can be searched and filtered', function () {
         'location_marina' => null,
         'specifications' => ['power_or_sail' => 'sail'],
     ]);
-    $sea->vessel->update(['loa_m' => 18.5]);
+    $sea->vessel->update(['loa_m' => 18.5, 'builder_name' => 'Nautor Swan', 'year_built' => 1998]);
 
     $names = fn (array $params): array => collect(
         $this->actingAs($editor)
@@ -171,7 +171,16 @@ test('the yacht list can be searched and filtered', function () {
         ->and($names(['category' => 'flybridge']))->toBe(['BLUE HORIZON'])
         ->and($names(['loa_min' => 30]))->toBe(['BLUE HORIZON'])
         ->and($names(['loa_max' => 30]))->toBe(['SEA DREAM'])
-        ->and($names(['loa_min' => 10, 'loa_max' => 50]))->toHaveCount(2);
+        ->and($names(['loa_min' => 10, 'loa_max' => 50]))->toHaveCount(2)
+        ->and($names(['builder' => 'Benetti']))->toBe(['BLUE HORIZON'])
+        ->and($names(['year_min' => 2000]))->toBe(['BLUE HORIZON'])
+        ->and($names(['year_max' => 2000]))->toBe(['SEA DREAM'])
+        // power_or_sail is a string in the JSON — this would catch a
+        // numeric-affinity regression in the comparison.
+        ->and($names(['power_sail' => 'sail']))->toBe(['SEA DREAM'])
+        ->and($names(['status' => 'active']))->toBe(['BLUE HORIZON'])
+        // An unknown status is ignored, not an error.
+        ->and($names(['status' => 'bogus']))->toHaveCount(2);
 });
 
 test('brokers see and edit only their own listings', function () {

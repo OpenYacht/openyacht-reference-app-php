@@ -62,6 +62,33 @@ test('an editor can create a charter yacht with rates, areas, and crew', functio
         ->and($yacht->assigned_broker_id)->toBe($editor->id);
 });
 
+test('the charter list applies the shared filter set', function () {
+    $editor = charterActor(Role::Editor);
+
+    $gale = CharterYacht::factory()->create([
+        'name' => 'SUMMER GALE',
+        'specifications' => ['power_or_sail' => 'sail'],
+    ]);
+    $gale->vessel->update(['builder_name' => 'Nautor Swan', 'year_built' => 2005]);
+
+    $calm = CharterYacht::factory()->create([
+        'name' => 'STILL WATERS',
+        'specifications' => ['power_or_sail' => 'power'],
+    ]);
+    $calm->vessel->update(['builder_name' => 'Benetti', 'year_built' => 2022]);
+
+    $names = fn (array $params): array => collect(
+        $this->actingAs($editor)
+            ->get(route('charter-yachts.index', $params))
+            ->original->getData()['page']['props']['yachts'],
+    )->pluck('name')->all();
+
+    expect($names([]))->toHaveCount(2)
+        ->and($names(['builder' => 'Nautor Swan']))->toBe(['SUMMER GALE'])
+        ->and($names(['year_min' => 2010]))->toBe(['STILL WATERS'])
+        ->and($names(['power_sail' => 'sail']))->toBe(['SUMMER GALE']);
+});
+
 test('an invented destination slug is rejected; an unlisted cruising ground keeps a null slug', function () {
     $this->actingAs(charterActor(Role::Editor))
         ->post(route('charter-yachts.store'), [

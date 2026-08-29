@@ -38,33 +38,18 @@ class YachtController extends Controller
         return Inertia::render('yachts/Index', [
             'filters' => $filters,
             'categories' => $categories->all(),
-            'yachts' => SaleYacht::query()
-                ->with(['vessel:id,builder_name,model_name,year_built,loa_m', 'media'])
-                // Broker scope is enforced in the query, not the UI.
-                ->when(
-                    ! $request->user()->can(Permission::ManageListings->value),
-                    fn ($query) => $query->where('assigned_broker_id', $request->user()->id),
-                )
-                ->when($filters['q'] !== '', fn ($query) => $query->where(
-                    fn ($query) => $query
-                        ->where('name', 'like', "%{$filters['q']}%")
-                        ->orWhereHas('vessel', fn ($vessel) => $vessel
-                            ->where('builder_name', 'like', "%{$filters['q']}%")
-                            ->orWhere('model_name', 'like', "%{$filters['q']}%")),
-                ))
-                ->when($filters['location'] !== '', fn ($query) => $query->where(
-                    fn ($query) => $query
-                        ->where('location_display', 'like', "%{$filters['location']}%")
-                        ->orWhere('location_city', 'like', "%{$filters['location']}%")
-                        ->orWhere('location_country', 'like', "%{$filters['location']}%")
-                        ->orWhere('location_marina', 'like', "%{$filters['location']}%"),
-                ))
-                ->when($filters['category'] !== '', fn ($query) => $query
-                    ->where('specifications->category->slug', $filters['category']))
-                ->when($filters['loa_min'] !== null, fn ($query) => $query
-                    ->whereHas('vessel', fn ($vessel) => $vessel->where('loa_m', '>=', $filters['loa_min'])))
-                ->when($filters['loa_max'] !== null, fn ($query) => $query
-                    ->whereHas('vessel', fn ($vessel) => $vessel->where('loa_m', '<=', $filters['loa_max'])))
+            'builders' => $this->builderOptions(),
+            'statuses' => $this->statusOptions(),
+            'yachts' => $this->applyOwnListingFilters(
+                SaleYacht::query()
+                    ->with(['vessel:id,builder_name,model_name,year_built,loa_m', 'media'])
+                    // Broker scope is enforced in the query, not the UI.
+                    ->when(
+                        ! $request->user()->can(Permission::ManageListings->value),
+                        fn ($query) => $query->where('assigned_broker_id', $request->user()->id),
+                    ),
+                $filters,
+            )
                 ->orderByDesc('federation_updated_at')
                 ->get()
                 ->map(fn (SaleYacht $yacht): array => [

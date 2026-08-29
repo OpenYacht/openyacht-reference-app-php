@@ -13,6 +13,10 @@ defineProps<{
     searchPlaceholder: string;
     filters: ListingFilters;
     categories: { slug: string; name: string }[];
+    builders?: string[];
+    statuses?: { value: string; label: string }[];
+    showYearRange?: boolean;
+    showPowerSail?: boolean;
     hasResults: boolean;
     empty: string;
 }>();
@@ -30,6 +34,10 @@ defineProps<{
         <ListingFilterBar
             :initial="filters"
             :categories="categories"
+            :builders="builders"
+            :statuses="statuses"
+            :show-year-range="showYearRange"
+            :show-power-sail="showPowerSail"
             :placeholder="searchPlaceholder"
         />
 

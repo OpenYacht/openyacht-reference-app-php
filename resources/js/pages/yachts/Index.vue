@@ -24,6 +24,8 @@ type YachtRow = {
 defineProps<{
     filters: ListingFilters;
     categories: { slug: string; name: string }[];
+    builders: string[];
+    statuses: { value: string; label: string }[];
     yachts: YachtRow[];
 }>();
 
@@ -71,6 +73,10 @@ const metaLine = (yacht: YachtRow): string =>
         search-placeholder="Search name, builder, or model…"
         :filters="filters"
         :categories="categories"
+        :builders="builders"
+        :statuses="statuses"
+        show-year-range
+        show-power-sail
         :has-results="yachts.length > 0"
         empty="No listings found. New listings start as drafts and are never distributed until you activate them."
     >
