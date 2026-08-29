@@ -124,7 +124,12 @@ type Sharing = {
     audience: string;
     selected_partner_ids: number[];
     selected_group_ids: number[];
-    partners: { id: number; domain: string; node_name: string | null }[];
+    partners: {
+        id: number;
+        domain: string;
+        node_name: string | null;
+        sharing_scope: string;
+    }[];
     groups: { id: number; name: string; members_count: number }[];
 };
 

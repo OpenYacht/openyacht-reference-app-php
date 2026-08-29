@@ -49,6 +49,14 @@ class SyncedListingController extends Controller
             'copies' => ListingCopy::query()
                 ->with(['partner:id,domain,node_name,last_ok_at', 'import:id,listing_copy_id'])
                 ->where('type', $type)
+                // A partner whose import type preference excludes this
+                // type stays out of the review queue entirely — the copy
+                // is still stored (sync substrate), just never surfaced.
+                ->whereHas('partner', fn ($query) => $query->where(
+                    fn ($query) => $query
+                        ->where('import_types', 'both')
+                        ->orWhere('import_types', $type),
+                ))
                 ->when($filters['q'] !== '', fn ($query) => $query->where(
                     fn ($query) => $query
                         ->where('name', 'like', "%{$filters['q']}%")

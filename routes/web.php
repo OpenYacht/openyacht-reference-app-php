@@ -38,6 +38,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('federation/partners/{partner}/sync', [PartnerController::class, 'sync'])->name('partners.sync');
     Route::put('federation/partners/{partner}/field-groups', [PartnerController::class, 'updateFieldGroups'])->name('partners.field-groups.update');
     Route::put('federation/partners/{partner}/acceptance-policy', [PartnerController::class, 'updateAcceptancePolicy'])->name('partners.acceptance-policy.update');
+    Route::put('federation/partners/{partner}/sharing-scope', [PartnerController::class, 'updateSharingScope'])->name('partners.sharing-scope.update');
+    Route::put('federation/partners/{partner}/shared-listings', [PartnerController::class, 'updateSharedListings'])->name('partners.shared-listings.update');
+    Route::put('federation/partners/{partner}/import-types', [PartnerController::class, 'updateImportTypes'])->name('partners.import-types.update');
 
     Route::post('federation/partner-groups', [PartnerGroupController::class, 'store'])->name('partner-groups.store');
     Route::put('federation/partner-groups/{partnerGroup}', [PartnerGroupController::class, 'update'])->name('partner-groups.update');

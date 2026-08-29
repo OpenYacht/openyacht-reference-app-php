@@ -50,6 +50,34 @@ return [
     ],
 
     'acceptance_policy_updated' => 'Acceptance policy for :domain set to ":policy" — :published queued listing(s) published.',
+
+    'sharing_scopes' => [
+        'standard' => 'Standard',
+        'curated' => 'Curated',
+    ],
+
+    'sharing_scope_hints' => [
+        'standard' => 'Receives every listing shared with everyone, plus anything shared with it explicitly.',
+        'curated' => 'Receives only listings explicitly shared with it, directly or via a group — for show organisers and other limited partners.',
+    ],
+
+    'sharing_scope_updated' => 'Sharing scope for :domain set to ":scope" — :hidden listing(s) hidden, :revealed revealed.',
+    'shared_listings_updated' => 'Shared listings for :domain updated — :hidden hidden, :revealed revealed.',
+
+    'import_types' => [
+        'both' => 'Sale & charter',
+        'sale' => 'Sale only',
+        'charter' => 'Charter only',
+    ],
+
+    'import_type_hints' => [
+        'both' => 'Both listing types this partner shares are synced and can be published.',
+        'sale' => 'Only sale listings reach the review queue or publish; charter copies stay stored but never surface.',
+        'charter' => 'Only charter listings reach the review queue or publish; sale copies stay stored but never surface.',
+    ],
+
+    'import_types_updated' => 'Import types for :domain set to ":types" — :published queued listing(s) published.',
+    'import_type_excluded' => "The partner's import type preference excludes this listing type.",
     'conflict_dismissed' => 'Conflict dismissed — both records stay; display is your call.',
 
     'audience_updated' => 'Audience updated — :hidden partner(s) lose visibility, :revealed gain it.',

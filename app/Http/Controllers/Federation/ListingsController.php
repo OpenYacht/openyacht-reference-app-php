@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Federation;
 
 use App\Enums\FederationErrorCode;
 use App\Enums\ListingStatus;
+use App\Enums\SharingScope;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\FederationErrorResponse;
 use App\Models\CharterYacht;
@@ -164,7 +165,7 @@ class ListingsController extends Controller
      */
     private function feedPage(Builder $query, string $table, FederationPartner $partner, ?Carbon $updatedSince, ?array $cursor, int $pageSize): Collection
     {
-        $visible = $this->visibleSql($table);
+        $visible = $this->visibleSql($table, $partner);
         $effective = $this->effectiveSql($table);
 
         $query
@@ -228,21 +229,32 @@ class ListingsController extends Controller
     }
 
     /**
-     * The SQL mirror of SharingService::isVisibleTo() — a selected
-     * audience is the union of individually selected partners and members
-     * of selected groups. Two positional bindings (partner id, twice).
+     * The SQL mirror of SharingService::isVisibleTo() — visible ⇔
+     * audience is not "none" AND (an explicit pivot matches OR (audience
+     * is "everyone" AND the partner's sharing scope is standard)). Pivots
+     * are additive: an explicit selection (individually or via a group)
+     * grants under any non-none audience, which is how a curated partner
+     * is reached at all. The scope is a property of the requesting
+     * partner, resolved before the query is built, so it branches here
+     * rather than binding; both branches carry exactly two positional
+     * bindings (partner id, twice) so every call site binds identically.
      * The two implementations must stay mirrored.
      *
      * @param  literal-string  $table
      * @return literal-string
      */
-    private function visibleSql(string $table): string
+    private function visibleSql(string $table, FederationPartner $partner): string
     {
-        return "({$table}.audience = 'everyone' OR ({$table}.audience = 'selected' AND ("
-            ."EXISTS (SELECT 1 FROM listing_audience_partners a WHERE a.listing_uuid = {$table}.uuid AND a.federation_partner_id = ?)"
+        $pivotMatch = "(EXISTS (SELECT 1 FROM listing_audience_partners a WHERE a.listing_uuid = {$table}.uuid AND a.federation_partner_id = ?)"
             .' OR EXISTS (SELECT 1 FROM listing_audience_groups ag INNER JOIN partner_group_members gm ON gm.partner_group_id = ag.partner_group_id'
-            ." WHERE ag.listing_uuid = {$table}.uuid AND gm.federation_partner_id = ?)"
-            .')))';
+            ." WHERE ag.listing_uuid = {$table}.uuid AND gm.federation_partner_id = ?))";
+
+        // Curated partners never receive the everyone grant — only pivots.
+        if ($partner->sharing_scope === SharingScope::Curated) {
+            return "({$table}.audience != 'none' AND {$pivotMatch})";
+        }
+
+        return "({$table}.audience = 'everyone' OR ({$table}.audience != 'none' AND {$pivotMatch}))";
     }
 
     /**

@@ -1,8 +1,10 @@
 <?php
 
+use App\Enums\ImportTypes;
 use App\Enums\Role;
 use App\Enums\TrustLevel;
 use App\Models\FederationPartner;
+use App\Models\ListingCopy;
 use App\Models\User;
 use App\Services\Federation\KeyManager;
 use App\Services\Federation\NodeDirectoryIndex;
@@ -183,3 +185,38 @@ test('the node directory page shows findability and precomputed listing requests
             ->has('listingRequests.amend')
             ->where('directory.0.status', 'self'));
 })->group('FP-16');
+
+test('import types are managed with the federation permission and hide the excluded review queue', function () {
+    $partner = FederationPartner::factory()->verified()->create();
+    $saleCopy = ListingCopy::factory()->create([
+        'federation_partner_id' => $partner->id,
+        'type' => 'sale',
+    ]);
+    $charterCopy = ListingCopy::factory()->create([
+        'federation_partner_id' => $partner->id,
+        'type' => 'charter',
+    ]);
+
+    $this->actingAs(federationActor(Role::Admin))
+        ->put(route('partners.import-types.update', $partner), ['import_types' => 'sale'])
+        ->assertForbidden();
+
+    $this->actingAs(federationActor(Role::SuperAdmin))
+        ->put(route('partners.import-types.update', $partner), ['import_types' => 'sale'])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect($partner->refresh()->import_types)->toBe(ImportTypes::Sale);
+
+    // The charter review queue no longer surfaces this partner's copies;
+    // the sale queue still does.
+    $listingIds = fn (string $routeName): array => collect(
+        $this->actingAs(federationActor(Role::SuperAdmin))
+            ->get(route($routeName))
+            ->assertOk()
+            ->original->getData()['page']['props']['copies'],
+    )->pluck('id')->all();
+
+    expect($listingIds('synced-listings.index'))->toBe([$saleCopy->id])
+        ->and($listingIds('synced-charter-listings.index'))->not->toContain($charterCopy->id);
+});

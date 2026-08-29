@@ -4,6 +4,7 @@ namespace App\Services\Federation;
 
 use App\Enums\Audience;
 use App\Enums\ListingStatus;
+use App\Enums\SharingScope;
 use App\Enums\VisibilityTransition;
 use App\Models\CharterYacht;
 use App\Models\FederationPartner;
@@ -32,16 +33,28 @@ use Illuminate\Support\Collection;
  */
 class SharingService
 {
+    /**
+     * The rule, stated once: visible ⇔ audience is not "none" AND
+     * (an explicit pivot matches OR (audience is "everyone" AND the
+     * partner's sharing scope is standard)). Pivots are additive — an
+     * explicit selection grants under any non-none audience, which is how
+     * a curated partner is reached at all; the everyone audience covers
+     * standard partners only.
+     */
     public function isVisibleTo(SaleYacht|CharterYacht $listing, FederationPartner $partner): bool
     {
-        return match ($listing->audience) {
-            Audience::Everyone => true,
-            Audience::None => false,
-            Audience::Selected => $listing->audiencePartners()->whereKey($partner->id)->exists()
-                || $listing->audienceGroups()
-                    ->whereHas('members', fn ($query) => $query->whereKey($partner->id))
-                    ->exists(),
-        };
+        if ($listing->audience === Audience::None) {
+            return false;
+        }
+
+        if ($listing->audience === Audience::Everyone && $partner->sharing_scope === SharingScope::Standard) {
+            return true;
+        }
+
+        return $listing->audiencePartners()->whereKey($partner->id)->exists()
+            || $listing->audienceGroups()
+                ->whereHas('members', fn ($query) => $query->whereKey($partner->id))
+                ->exists();
     }
 
     /**
@@ -70,7 +83,9 @@ class SharingService
             ->all();
 
         $visibleAfter = fn (FederationPartner $partner): bool => match ($audience) {
-            Audience::Everyone => true,
+            Audience::Everyone => $partner->sharing_scope === SharingScope::Standard
+                || in_array($partner->id, $selectedPartnerIds, true)
+                || in_array($partner->id, $groupMemberIds, true),
             Audience::None => false,
             Audience::Selected => in_array($partner->id, $selectedPartnerIds, true)
                 || in_array($partner->id, $groupMemberIds, true),
@@ -98,8 +113,14 @@ class SharingService
             }
         }
 
-        $listing->audiencePartners()->sync($audience === Audience::Selected ? $selectedPartnerIds : []);
-        $listing->audienceGroups()->sync($audience === Audience::Selected ? $selectedGroupIds : []);
+        // Pivots persist under everyone AND selected (additive: under
+        // everyone they extend the audience to curated partners). A none
+        // audience leaves them untouched — hiding a listing must not
+        // destroy its curated selection; none already hides everything.
+        if ($audience !== Audience::None) {
+            $listing->audiencePartners()->sync($selectedPartnerIds);
+            $listing->audienceGroups()->sync($selectedGroupIds);
+        }
         // Not mass-assignable and deliberately not stamped: the concern's
         // updating hook skips federation_updated_at for audience-only
         // changes — the events above move exactly the affected partners.
@@ -112,6 +133,141 @@ class SharingService
                 ->withProperties(['uuid' => $listing->uuid, 'audience' => $audience->value, 'hidden' => $hidden, 'revealed' => $revealed])
                 ->event('audience_changed')
                 ->log("Audience for {$listing->uuid} set to {$audience->value}: {$hidden} partner(s) lose visibility, {$revealed} gain it");
+        }
+
+        return ['hidden' => $hidden, 'revealed' => $revealed];
+    }
+
+    /**
+     * Change a partner's sharing scope, recording a visibility transition
+     * for every listing whose view changes: narrowing to curated
+     * tombstones everything the partner saw only through the everyone
+     * audience (explicit shares survive), and widening back to standard
+     * resurfaces the same set. No listing row is touched, so
+     * federation_updated_at cannot move.
+     *
+     * @return array{hidden: int, revealed: int}
+     */
+    public function setSharingScope(FederationPartner $partner, SharingScope $scope): array
+    {
+        if ($partner->sharing_scope === $scope) {
+            return ['hidden' => 0, 'revealed' => 0];
+        }
+
+        $now = now();
+        $hidden = 0;
+        $revealed = 0;
+
+        // Drafts are never distributed (LS-7); every other status can have
+        // been seen and so can need a tombstone or a resurface.
+        $listings = SaleYacht::query()->where('status', '!=', ListingStatus::Draft)->get()
+            ->concat(CharterYacht::query()->where('status', '!=', ListingStatus::Draft)->get());
+
+        $before = [];
+
+        foreach ($listings as $listing) {
+            $before[$listing->uuid] = $this->isVisibleTo($listing, $partner);
+        }
+
+        $partner->update(['sharing_scope' => $scope]);
+
+        foreach ($listings as $listing) {
+            $isVisible = $this->isVisibleTo($listing, $partner);
+
+            if ($before[$listing->uuid] === $isVisible) {
+                continue;
+            }
+
+            VisibilityEvent::create([
+                'listing_uuid' => $listing->uuid,
+                'federation_partner_id' => $partner->id,
+                'event' => $isVisible ? VisibilityTransition::Visible : VisibilityTransition::Hidden,
+                'occurred_at' => $now,
+            ]);
+            $isVisible ? $revealed++ : $hidden++;
+        }
+
+        if ($hidden + $revealed > 0) {
+            activity('sharing')
+                ->performedOn($partner)
+                ->withProperties(['domain' => $partner->domain, 'sharing_scope' => $scope->value, 'hidden' => $hidden, 'revealed' => $revealed])
+                ->event('sharing_scope_changed')
+                ->log("Sharing scope for {$partner->domain} set to {$scope->value}: {$hidden} listing(s) hidden, {$revealed} revealed");
+        }
+
+        return ['hidden' => $hidden, 'revealed' => $revealed];
+    }
+
+    /**
+     * Replace a partner's direct shares within one listing type — the
+     * partner-page picker's write path. Same pivot table the per-listing
+     * sharing card edits, same diffing: snapshot visibility per affected
+     * listing, apply, re-ask, emit a transition per changed listing.
+     * Group-derived visibility is untouched (removing a direct share
+     * emits no tombstone while a group still grants the listing), and
+     * drafts accept shares silently — nothing was ever distributed, so
+     * there is no transition to record until activation (LS-7).
+     *
+     * @param  'sale'|'charter'  $type
+     * @param  list<string>  $uuids  the partner's new full direct-share list within the type
+     * @return array{hidden: int, revealed: int}
+     */
+    public function replaceDirectSharesForPartner(FederationPartner $partner, string $type, array $uuids): array
+    {
+        $uuids = array_values(array_unique(array_map(strval(...), $uuids)));
+        $query = $type === 'sale' ? SaleYacht::query() : CharterYacht::query();
+
+        $currentUuids = $query->clone()
+            ->whereHas('audiencePartners', fn ($q) => $q->whereKey($partner->id))
+            ->pluck('uuid')
+            ->all();
+
+        /** @var Collection<int, SaleYacht|CharterYacht> $affected */
+        $affected = $query->clone()
+            ->whereIn('uuid', array_unique([...$currentUuids, ...$uuids]))
+            ->get();
+
+        $now = now();
+        $hidden = 0;
+        $revealed = 0;
+        $before = [];
+
+        foreach ($affected as $listing) {
+            $before[$listing->uuid] = $this->isVisibleTo($listing, $partner);
+        }
+
+        foreach ($affected as $listing) {
+            in_array($listing->uuid, $uuids, true)
+                ? $listing->audiencePartners()->syncWithoutDetaching([$partner->id])
+                : $listing->audiencePartners()->detach($partner->id);
+        }
+
+        foreach ($affected as $listing) {
+            if ($listing->status === ListingStatus::Draft) {
+                continue;
+            }
+
+            $isVisible = $this->isVisibleTo($listing, $partner);
+
+            if ($before[$listing->uuid] === $isVisible) {
+                continue;
+            }
+
+            VisibilityEvent::create([
+                'listing_uuid' => $listing->uuid,
+                'federation_partner_id' => $partner->id,
+                'event' => $isVisible ? VisibilityTransition::Visible : VisibilityTransition::Hidden,
+                'occurred_at' => $now,
+            ]);
+            $isVisible ? $revealed++ : $hidden++;
+        }
+
+        if ($hidden + $revealed > 0) {
+            activity('sharing')
+                ->performedOn($partner)
+                ->withProperties(['domain' => $partner->domain, 'type' => $type, 'hidden' => $hidden, 'revealed' => $revealed])
+                ->event('direct_shares_replaced')
+                ->log("Direct {$type} shares for {$partner->domain} replaced: {$hidden} listing(s) hidden, {$revealed} revealed");
         }
 
         return ['hidden' => $hidden, 'revealed' => $revealed];

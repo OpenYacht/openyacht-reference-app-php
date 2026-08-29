@@ -71,6 +71,9 @@ trait ManagesOwnListings
                     'id' => $partner->id,
                     'domain' => $partner->domain,
                     'node_name' => $partner->node_name,
+                    // Curated partners are excluded from the everyone
+                    // audience, so the card offers them under it explicitly.
+                    'sharing_scope' => $partner->sharing_scope->value,
                 ]),
             'groups' => PartnerGroup::query()
                 ->withCount('members')

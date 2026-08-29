@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\AcceptancePolicy;
+use App\Enums\ImportTypes;
 use App\Models\FederationKey;
 use App\Models\FederationPartner;
 use App\Models\ImportedYacht;
@@ -8,6 +9,7 @@ use App\Models\ListingCopy;
 use App\Models\PartnerGroup;
 use App\Models\SaleYacht;
 use App\Models\Vessel;
+use App\Services\Federation\ImportService;
 use App\Services\Federation\SyncService;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
@@ -109,6 +111,63 @@ test('accept_all publishes incomplete listings too; review publishes nothing', f
     expect(ListingCopy::count())->toBe(1)
         ->and(ImportedYacht::count())->toBe(0);
 });
+
+test('an excluded import type stores the copy but never projects it', function () {
+    $partner = FederationPartner::factory()->verified()->importsOnly(ImportTypes::Sale)->create([
+        'domain' => 'openyacht.partner.example',
+        'acceptance_policy' => 'accept_all',
+    ]);
+
+    Http::fake([
+        'openyacht.partner.example/openyacht/v1/listings?*' => Http::response([
+            'data' => [
+                acceptableItem('uuid-1'),
+                acceptableItem('uuid-2', [
+                    'type' => 'charter',
+                    'listing' => ['price' => null],
+                    'charter' => ['rates' => [['season' => 'summer', 'rate_type' => 'weekly', 'amount_min' => '100000', 'currency' => 'EUR']]],
+                ]),
+            ],
+            'meta' => ['generated_at' => '2026-08-21T12:00:00Z', 'protocol_version' => '1.0'],
+        ]),
+    ]);
+
+    app(SyncService::class)->sync($partner);
+
+    // The charter copy is stored (sync substrate stays complete) but a
+    // sales-only preference never projects it, even under accept_all.
+    expect(ListingCopy::count())->toBe(2)
+        ->and(ImportedYacht::count())->toBe(1)
+        ->and(ImportedYacht::query()->firstOrFail()->type)->toBe('sale');
+});
+
+test('loosening the import types publishes the stored backlog of the other type', function () {
+    $partner = acceptanceSync([acceptableItem('uuid-1', [
+        'type' => 'charter',
+        'listing' => ['price' => null],
+        'charter' => ['rates' => [['season' => 'summer', 'rate_type' => 'weekly', 'amount_min' => '100000', 'currency' => 'EUR']]],
+    ])], policy: 'accept_all');
+
+    $partner->update(['import_types' => ImportTypes::Sale]);
+    ImportedYacht::query()->delete();
+
+    expect(app(SyncService::class)->publishEligibleBacklog($partner->refresh()))->toBe(0);
+
+    $partner->update(['import_types' => ImportTypes::Both]);
+
+    expect(app(SyncService::class)->publishEligibleBacklog($partner->refresh()))->toBe(1);
+});
+
+test('a manual import of an excluded type is refused', function () {
+    $partner = FederationPartner::factory()->verified()->importsOnly(ImportTypes::Sale)->create();
+    $copy = ListingCopy::factory()->create([
+        'federation_partner_id' => $partner->id,
+        'type' => 'charter',
+        'payload' => ['listing' => ['name' => 'EXCLUDED'], 'usage' => ['display' => true]],
+    ]);
+
+    app(ImportService::class)->import($copy);
+})->throws(InvalidArgumentException::class);
 
 test('a trusted group policy covers its members', function () {
     $partner = acceptanceSync([acceptableItem('uuid-1')], policy: 'review');

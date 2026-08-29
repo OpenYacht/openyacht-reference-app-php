@@ -34,6 +34,10 @@ class ImportService
             throw new InvalidArgumentException("The listing's usage terms do not permit display.");
         }
 
+        if (! $copy->partner->importsType($copy->type)) {
+            throw new InvalidArgumentException(__('federation.import_type_excluded'));
+        }
+
         $yacht = ImportedYacht::query()->updateOrCreate(
             ['listing_copy_id' => $copy->id],
             $this->projection($copy) + [

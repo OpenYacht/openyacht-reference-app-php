@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\AcceptancePolicy;
 use App\Enums\FieldGroup;
+use App\Enums\ImportTypes;
+use App\Enums\SharingScope;
 use App\Enums\TrustLevel;
 use Database\Factories\FederationPartnerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -31,6 +33,8 @@ use Illuminate\Support\Carbon;
  * @property TrustLevel $trust_level
  * @property array<int, string>|null $field_groups
  * @property AcceptancePolicy $acceptance_policy
+ * @property SharingScope $sharing_scope
+ * @property ImportTypes $import_types
  * @property int|null $approved_by_user_id
  * @property Carbon|null $last_ok_at
  * @property int $consecutive_failures
@@ -43,7 +47,7 @@ use Illuminate\Support\Carbon;
     'domain', 'node_name', 'node_uuid', 'keys_json', 'keys_fetched_at', 'pinned_key_id',
     'trust_level', 'field_groups', 'approved_by_user_id', 'last_ok_at',
     'consecutive_failures', 'last_synced_at', 'last_attempted_at',
-    'acceptance_policy',
+    'acceptance_policy', 'sharing_scope', 'import_types',
 ])]
 class FederationPartner extends Model
 {
@@ -51,13 +55,16 @@ class FederationPartner extends Model
     use HasFactory;
 
     /**
-     * The attribute-level twin of the column default: every partner holds
-     * listings for review until an operator loosens the policy.
+     * The attribute-level twins of the column defaults: every partner
+     * holds listings for review until an operator loosens the policy, and
+     * receives the open catalogue until an operator curates it.
      *
      * @var array<string, mixed>
      */
     protected $attributes = [
         'acceptance_policy' => 'review',
+        'sharing_scope' => 'standard',
+        'import_types' => 'both',
     ];
 
     /**
@@ -73,6 +80,8 @@ class FederationPartner extends Model
             'trust_level' => TrustLevel::class,
             'field_groups' => 'array',
             'acceptance_policy' => AcceptancePolicy::class,
+            'sharing_scope' => SharingScope::class,
+            'import_types' => ImportTypes::class,
             'last_ok_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'last_attempted_at' => 'datetime',
@@ -117,6 +126,17 @@ class FederationPartner extends Model
             ...$this->groups()->whereNotNull('acceptance_policy')->get()
                 ->map(fn (PartnerGroup $group): AcceptancePolicy => $group->acceptance_policy),
         ]);
+    }
+
+    /**
+     * Whether this node projects the partner's listings of the given
+     * wire type ('sale' or 'charter') for display. Copies are always
+     * stored regardless — this gates only projection and the review
+     * queue.
+     */
+    public function importsType(string $type): bool
+    {
+        return $this->import_types->accepts($type);
     }
 
     /**

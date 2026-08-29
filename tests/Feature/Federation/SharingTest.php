@@ -2,6 +2,7 @@
 
 use App\Enums\Audience;
 use App\Enums\FieldGroup;
+use App\Enums\SharingScope;
 use App\Models\FederationPartner;
 use App\Models\PartnerGroup;
 use App\Models\SaleYacht;
@@ -252,6 +253,122 @@ test('deleting a group empties membership first so the tombstones land in the lo
     expect($data)->toHaveCount(1)
         ->and($data[0]['tombstone'])->toBeTrue();
 })->group('API-3');
+
+test('a curated partner receives only explicitly shared listings, never the everyone audience', function () {
+    $this->partner->update(['sharing_scope' => SharingScope::Curated]);
+
+    $everyone = SaleYacht::factory()->active()->create();
+    $directlyShared = SaleYacht::factory()->active()->create();
+    $groupShared = SaleYacht::factory()->active()->create();
+
+    $group = PartnerGroup::factory()->create();
+    $group->members()->attach($this->partner);
+
+    $sharing = app(SharingService::class);
+    $sharing->setAudience($directlyShared, Audience::Selected, [$this->partner->id]);
+    $sharing->setAudience($groupShared, Audience::Selected, [], [$group->id]);
+
+    $ids = collect(sharingGet($this, '/openyacht/v1/listings')->assertOk()->json('data'))->pluck('id');
+
+    expect($ids)->toContain($directlyShared->canonicalUri())
+        ->toContain($groupShared->canonicalUri())
+        ->not->toContain($everyone->canonicalUri());
+
+    // The unshared listing dereferences like a nonexistent one — no leak.
+    sharingGet($this, "/openyacht/v1/listings/{$everyone->uuid}")->assertNotFound();
+})->group('API-2');
+
+test('narrowing a partner to curated tombstones its everyone-only listings; widening resurfaces them', function () {
+    $everyone = SaleYacht::factory()->active()->create();
+    $selected = SaleYacht::factory()->active()->create();
+    $sharing = app(SharingService::class);
+
+    $sharing->setAudience($selected, Audience::Selected, [$this->partner->id]);
+    $wireTimestamp = $everyone->refresh()->federation_updated_at;
+
+    $this->travel(1)->minutes();
+    $watermark = sharingWatermark();
+    $this->travel(1)->minutes();
+
+    $result = $sharing->setSharingScope($this->partner->refresh(), SharingScope::Curated);
+
+    // Exactly the everyone-only listing tombstones; the explicit share
+    // survives, and no listing's wire timestamp moves.
+    expect($result)->toBe(['hidden' => 1, 'revealed' => 0])
+        ->and($everyone->refresh()->federation_updated_at)->toEqual($wireTimestamp);
+
+    $data = sharingGet($this, '/openyacht/v1/listings?updated_since='.$watermark)->assertOk()->json('data');
+
+    expect($data)->toHaveCount(1)
+        ->and($data[0]['tombstone'])->toBeTrue()
+        ->and($data[0]['status'])->toBe('withdrawn');
+
+    $this->travel(1)->minutes();
+    $watermark = sharingWatermark();
+    $this->travel(1)->minutes();
+
+    $result = $sharing->setSharingScope($this->partner->refresh(), SharingScope::Standard);
+
+    expect($result)->toBe(['hidden' => 0, 'revealed' => 1]);
+
+    $data = sharingGet($this, '/openyacht/v1/listings?updated_since='.$watermark)->assertOk()->json('data');
+
+    expect($data)->toHaveCount(1)
+        ->and($data[0])->not->toHaveKey('tombstone')
+        ->and($data[0]['id'])->toBe($everyone->canonicalUri());
+})->group('API-2', 'API-3');
+
+test('an explicit share on an everyone listing reaches curated partners without disturbing standard ones', function () {
+    $this->partner->update(['sharing_scope' => SharingScope::Curated]);
+    $standard = FederationPartner::factory()->verified()->create();
+
+    $yacht = SaleYacht::factory()->active()->create();
+    $group = PartnerGroup::factory()->create();
+    $group->members()->attach($this->partner);
+
+    // Pivots are additive: ticking the group extends the everyone
+    // audience to its curated members; standard members were already
+    // visible, so only the curated partner gets a transition.
+    $result = app(SharingService::class)->setAudience($yacht, Audience::Everyone, [], [$group->id]);
+
+    expect($result)->toBe(['hidden' => 0, 'revealed' => 1])
+        ->and(VisibilityEvent::query()->pluck('federation_partner_id')->all())->toBe([$this->partner->id])
+        ->and($standard->refresh()->sharing_scope)->toBe(SharingScope::Standard);
+
+    $ids = collect(sharingGet($this, '/openyacht/v1/listings')->assertOk()->json('data'))->pluck('id');
+
+    expect($ids)->toContain($yacht->canonicalUri());
+})->group('API-2', 'API-3');
+
+test('direct shares replaced from the partner picker replay through the event log', function () {
+    $this->partner->update(['sharing_scope' => SharingScope::Curated]);
+    $yacht = SaleYacht::factory()->active()->create();
+    $sharing = app(SharingService::class);
+
+    $this->travel(1)->minutes();
+    $watermark = sharingWatermark();
+    $this->travel(1)->minutes();
+
+    $sharing->replaceDirectSharesForPartner($this->partner, 'sale', [$yacht->uuid]);
+
+    $data = sharingGet($this, '/openyacht/v1/listings?updated_since='.$watermark)->assertOk()->json('data');
+
+    expect($data)->toHaveCount(1)
+        ->and($data[0])->not->toHaveKey('tombstone')
+        ->and($data[0]['id'])->toBe($yacht->canonicalUri());
+
+    $this->travel(1)->minutes();
+    $watermark = sharingWatermark();
+    $this->travel(1)->minutes();
+
+    $sharing->replaceDirectSharesForPartner($this->partner, 'sale', []);
+
+    $data = sharingGet($this, '/openyacht/v1/listings?updated_since='.$watermark)->assertOk()->json('data');
+
+    expect($data)->toHaveCount(1)
+        ->and($data[0]['tombstone'])->toBeTrue()
+        ->and($data[0]['status'])->toBe('withdrawn');
+})->group('API-2', 'API-3');
 
 test('a grants change resends re-gated payloads on the next poll', function () {
     SaleYacht::factory()->active()->create();

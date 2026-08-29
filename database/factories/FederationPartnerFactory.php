@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Enums\ImportTypes;
+use App\Enums\SharingScope;
 use App\Enums\TrustLevel;
 use App\Models\FederationPartner;
 use App\Services\Federation\KeyManager;
@@ -47,6 +49,16 @@ class FederationPartnerFactory extends Factory
     public function blocked(): static
     {
         return $this->state(fn (): array => ['trust_level' => TrustLevel::Blocked]);
+    }
+
+    public function curated(): static
+    {
+        return $this->state(fn (): array => ['sharing_scope' => SharingScope::Curated]);
+    }
+
+    public function importsOnly(ImportTypes $type): static
+    {
+        return $this->state(fn (): array => ['import_types' => $type]);
     }
 
     public function unreachableSince(int $days): static

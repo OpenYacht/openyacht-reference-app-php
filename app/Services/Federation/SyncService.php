@@ -237,10 +237,13 @@ class SyncService
         }
 
         // Sync is not publication: the copy is always stored, and whether
-        // it is also published is the partner's acceptance policy — the
-        // spec has no per-listing approval step, and everything after the
-        // first accept is already automatic (ID-7).
-        if ($copy->import()->doesntExist() && $this->shouldAutoPublish($policy, $copy)) {
+        // it is also published is the partner's acceptance policy and
+        // import type preference — the spec has no per-listing approval
+        // step, and everything after the first accept is already
+        // automatic (ID-7). A projection imported before the preference
+        // tightened keeps tracking upstream (the refresh above) until a
+        // human removes it.
+        if ($copy->import()->doesntExist() && $partner->importsType($copy->type) && $this->shouldAutoPublish($policy, $copy)) {
             $this->imports->import($copy, auto: true);
         }
 
@@ -267,7 +270,7 @@ class SyncService
             ->get();
 
         foreach ($backlog as $copy) {
-            if ($this->shouldAutoPublish($policy, $copy)) {
+            if ($partner->importsType($copy->type) && $this->shouldAutoPublish($policy, $copy)) {
                 $this->imports->import($copy, auto: true);
                 $published++;
             }

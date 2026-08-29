@@ -6,6 +6,7 @@ type PartnerOption = {
     id: number;
     domain: string;
     node_name: string | null;
+    sharing_scope: string;
 };
 
 type GroupOption = {
@@ -33,7 +34,7 @@ const audienceOptions = [
     {
         value: 'everyone',
         label: 'Everyone',
-        hint: 'Every approved partner receives this listing.',
+        hint: 'Every approved standard partner receives this listing; curated partners only if picked below.',
     },
     {
         value: 'selected',
@@ -46,6 +47,13 @@ const audienceOptions = [
         hint: 'Withdrawn from every partner feed — tombstoned like a real withdrawal.',
     },
 ];
+
+// Explicit picks are additive: under an everyone audience they extend
+// the listing to curated partners (standard partners already receive
+// it), so the everyone section offers only curated partners.
+const curatedPartners = computed(() =>
+    props.partners.filter((partner) => partner.sharing_scope === 'curated'),
+);
 
 // Once the partner list outgrows a handful, checkboxes become a
 // searchable list.
@@ -81,8 +89,10 @@ const save = () => {
         props.updateUrl,
         {
             audience: audience.value,
-            partner_ids: audience.value === 'selected' ? partnerIds.value : [],
-            group_ids: audience.value === 'selected' ? groupIds.value : [],
+            // Picks persist under everyone AND selected (additive); a
+            // none audience leaves the stored selection untouched.
+            partner_ids: audience.value === 'none' ? [] : partnerIds.value,
+            group_ids: audience.value === 'none' ? [] : groupIds.value,
         },
         {
             preserveScroll: true,
@@ -133,6 +143,48 @@ const save = () => {
                     </span>
                 </label>
             </fieldset>
+
+            <div
+                v-if="
+                    audience === 'everyone' &&
+                    (curatedPartners.length || groups.length)
+                "
+                class="space-y-4 rounded-md border border-default p-3"
+            >
+                <p class="text-xs text-muted">
+                    Also share with curated partners — they receive only what is
+                    picked here, directly or through a group.
+                </p>
+
+                <div v-if="groups.length">
+                    <p class="mb-2 text-sm font-medium">Partner groups</p>
+                    <div class="space-y-1">
+                        <UCheckbox
+                            v-for="group in groups"
+                            :key="group.id"
+                            :model-value="groupIds.includes(group.id)"
+                            :label="`${group.name} (${group.members_count})`"
+                            @update:model-value="toggleGroup(group.id)"
+                        />
+                    </div>
+                </div>
+
+                <div v-if="curatedPartners.length">
+                    <p class="mb-2 text-sm font-medium">Curated partners</p>
+                    <div class="max-h-56 space-y-1 overflow-y-auto">
+                        <UCheckbox
+                            v-for="partner in curatedPartners"
+                            :key="partner.id"
+                            :model-value="partnerIds.includes(partner.id)"
+                            :label="partner.node_name ?? partner.domain"
+                            :description="
+                                partner.node_name ? partner.domain : undefined
+                            "
+                            @update:model-value="togglePartner(partner.id)"
+                        />
+                    </div>
+                </div>
+            </div>
 
             <div v-if="audience === 'selected'" class="space-y-4">
                 <div v-if="groups.length">

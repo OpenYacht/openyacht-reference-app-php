@@ -3,6 +3,7 @@
 use App\Enums\Audience;
 use App\Enums\FieldGroup;
 use App\Enums\Role;
+use App\Enums\SharingScope;
 use App\Enums\VisibilityTransition;
 use App\Models\FederationPartner;
 use App\Models\ListingCopy;
@@ -37,6 +38,49 @@ test('an editor can set a listing audience from the edit screen', function () {
     $yacht->refresh();
 
     expect($yacht->audience)->toBe(Audience::Selected)
+        ->and($yacht->audiencePartners()->pluck('federation_partners.id')->all())->toBe([$partner->id]);
+});
+
+test('an everyone audience keeps explicit picks for curated partners', function () {
+    $editor = sharingActor(Role::Editor);
+    $yacht = SaleYacht::factory()->active()->create();
+    $curated = FederationPartner::factory()->verified()->curated()->create();
+    FederationPartner::factory()->verified()->create();
+
+    $this->actingAs($editor)
+        ->put(route('yachts.audience.update', $yacht), [
+            'audience' => 'everyone',
+            'partner_ids' => [$curated->id],
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    // The pick persists under everyone (additive), and only the curated
+    // partner's view changed — standard partners already received it.
+    expect($yacht->refresh()->audience)->toBe(Audience::Everyone)
+        ->and($yacht->audiencePartners()->pluck('federation_partners.id')->all())->toBe([$curated->id])
+        ->and(VisibilityEvent::query()->pluck('federation_partner_id')->all())->toBe([$curated->id]);
+});
+
+test('hiding a listing leaves its stored selection untouched', function () {
+    $editor = sharingActor(Role::Editor);
+    $yacht = SaleYacht::factory()->active()->create();
+    $partner = FederationPartner::factory()->verified()->create();
+
+    $this->actingAs($editor)
+        ->put(route('yachts.audience.update', $yacht), [
+            'audience' => 'selected',
+            'partner_ids' => [$partner->id],
+        ])
+        ->assertRedirect();
+
+    $this->actingAs($editor)
+        ->put(route('yachts.audience.update', $yacht), ['audience' => 'none'])
+        ->assertRedirect();
+
+    // A none audience hides everything regardless; keeping the selection
+    // means restoring the audience restores exactly the same partners.
+    expect($yacht->refresh()->audience)->toBe(Audience::None)
         ->and($yacht->audiencePartners()->pluck('federation_partners.id')->all())->toBe([$partner->id]);
 });
 
@@ -108,6 +152,31 @@ test('loosening a policy publishes the queued backlog immediately', function () 
 
     expect($copy->refresh()->import()->exists())->toBeTrue()
         ->and($copy->import->auto_published_at)->not->toBeNull();
+});
+
+test('sharing scope is managed with the federation permission', function () {
+    $superAdmin = sharingActor(Role::SuperAdmin);
+    $editor = sharingActor(Role::Editor);
+    $partner = FederationPartner::factory()->verified()->create();
+    $yacht = SaleYacht::factory()->active()->create();
+
+    $this->actingAs($editor)
+        ->put(route('partners.sharing-scope.update', $partner), ['sharing_scope' => 'curated'])
+        ->assertForbidden();
+
+    $this->actingAs($superAdmin)
+        ->put(route('partners.sharing-scope.update', $partner), ['sharing_scope' => 'curated'])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    // Narrowing tombstones what the partner saw only through the
+    // everyone audience — the transition is what its next poll replays.
+    $event = VisibilityEvent::query()->firstWhere('listing_uuid', $yacht->uuid);
+
+    expect($partner->refresh()->sharing_scope)->toBe(SharingScope::Curated)
+        ->and($event)->not->toBeNull()
+        ->and($event->federation_partner_id)->toBe($partner->id)
+        ->and($event->event)->toBe(VisibilityTransition::Hidden);
 });
 
 test('changing partner field-group grants refreshes that partner feed', function () {
