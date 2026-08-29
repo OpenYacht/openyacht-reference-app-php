@@ -73,7 +73,12 @@ class ActivityLogController extends Controller
             ],
             'retention' => [
                 'days' => $pruner->retentionDays(),
-                'total' => Activity::query()->count(),
+                // Only the prunable summaries are relevant to cleanup; the
+                // audit entries are never removed, so counting them here
+                // would misrepresent what the retention window touches.
+                'summaries' => Activity::query()
+                    ->whereIn('log_name', ActivityLogPruner::PRUNABLE_CHANNELS)
+                    ->count(),
             ],
         ]);
     }

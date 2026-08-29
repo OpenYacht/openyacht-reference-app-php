@@ -40,7 +40,7 @@ const props = defineProps<{
         events: string[];
         causers: { id: number; name: string }[];
     };
-    retention: { days: number; total: number };
+    retention: { days: number; summaries: number };
 }>();
 
 defineOptions({
@@ -331,8 +331,14 @@ const runCleanup = () => router.post(prune.url(), {}, { preserveScroll: true });
                         partnerships, shares, imports, and withdrawals — is
                         always kept, since it is the record of when a listing
                         was displayed. Set it to <strong>0</strong> to keep the
-                        summaries too. {{ retention.total }} entries are stored
-                        now.
+                        summaries too.
+                        {{ retention.summaries }}
+                        {{
+                            retention.summaries === 1
+                                ? 'summary is'
+                                : 'summaries are'
+                        }}
+                        stored now.
                     </p>
                 </div>
                 <div class="flex items-end gap-2">
