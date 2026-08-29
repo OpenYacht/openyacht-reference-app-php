@@ -179,10 +179,11 @@ const statusColor = (status: string) =>
                 <li
                     v-for="listing in recentListings"
                     :key="`${listing.type}-${listing.id}`"
+                    class="py-3 transition-colors first:pt-0 last:pb-0 hover:bg-elevated/40"
                 >
                     <Link
                         :href="listingHref(listing)"
-                        class="flex items-center gap-3 py-3 transition-colors hover:bg-elevated/40"
+                        class="flex items-center gap-3"
                     >
                         <img
                             v-if="listing.thumbnail_url"
