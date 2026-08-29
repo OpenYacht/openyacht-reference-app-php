@@ -42,14 +42,13 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // The data API's OpenAPI spec (/docs/api.json): AuthenticateApiKey
-        // accepts the key via the X-API-Key header, an Authorization
-        // Bearer token, or the api_key query param — document all three
-        // as alternatives.
+        // accepts the key via the X-API-Key header or an Authorization
+        // Bearer token — document both as alternatives. (No query-param
+        // form: credentials in query strings end up in access logs.)
         Scramble::configure()
             ->afterOpenApiGenerated(function (OpenApi $openApi): void {
                 $openApi->secure(SecurityScheme::apiKey('header', 'X-API-Key'));
                 $openApi->secure(SecurityScheme::http('bearer')->as('bearerToken'));
-                $openApi->secure(SecurityScheme::apiKey('query', 'api_key')->as('apiKeyQuery'));
             });
 
         // API docs are public: the API itself is the access boundary

@@ -35,13 +35,16 @@ authority node and are **never redistributed over federation**.
 
 ## Authentication
 
-Every request must include an API key, supplied any of these ways:
+Every request must include an API key, supplied either way:
 
 | Method | Example |
 |--------|---------|
 | HTTP header | `X-API-Key: your-key-here` |
 | Bearer token | `Authorization: Bearer your-key-here` |
-| Query parameter | `?api_key=your-key-here` |
+
+There is deliberately no `?api_key=` query-parameter form — query strings
+are written to access logs, proxy logs, and browser history, which is no
+place for a credential.
 
 ### Scopes
 

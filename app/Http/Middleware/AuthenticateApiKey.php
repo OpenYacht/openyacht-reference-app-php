@@ -20,13 +20,15 @@ class AuthenticateApiKey
      */
     public function handle(Request $request, Closure $next, string ...$scopes): Response
     {
+        // Headers only, deliberately no ?api_key= query parameter: query
+        // strings land in access logs, proxy logs and browser history,
+        // which is no place for a credential.
         $plaintext = $request->header('X-API-Key')
-            ?? $request->bearerToken()
-            ?? $request->query('api_key');
+            ?? $request->bearerToken();
 
         if (! is_string($plaintext) || $plaintext === '') {
             return response()->json([
-                'error' => 'API key is required. Provide via X-API-Key header, Authorization: Bearer header, or api_key query parameter.',
+                'error' => 'API key is required. Provide via the X-API-Key header or an Authorization: Bearer header.',
             ], 401);
         }
 

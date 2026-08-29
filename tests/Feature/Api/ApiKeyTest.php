@@ -41,6 +41,13 @@ test('keys are stored hashed, never in plaintext', function () {
         ->and(json_encode($row))->not->toContain($generated['plaintext']);
 });
 
+test('a key in the query string is never accepted — credentials do not belong in access logs', function () {
+    $generated = apiKeyWithScopes(['yachts:read']);
+
+    $this->getJson("/api/v1/yachts?api_key={$generated['plaintext']}")
+        ->assertUnauthorized();
+});
+
 test('a key without the scope is refused', function () {
     $generated = apiKeyWithScopes([]);
 
