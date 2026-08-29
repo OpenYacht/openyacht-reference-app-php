@@ -351,12 +351,15 @@ test('sync records federation activity for status changes, tombstones, and remov
 
     app(SyncService::class)->sync($partner);
 
-    $events = Activity::query()->where('log_name', 'sync')->pluck('event')->all();
+    // Evidentiary per-listing events are audit ('federation', kept
+    // forever); the per-run summary is the only prunable one ('sync').
+    $audit = Activity::query()->where('log_name', 'federation')->pluck('event')->all();
+    $sync = Activity::query()->where('log_name', 'sync')->pluck('event')->all();
 
-    expect($events)->toContain('listing_status_changed')
+    expect($audit)->toContain('listing_status_changed')
         ->toContain('listing_tombstoned')
         ->toContain('import_removed')
-        ->toContain('sync_completed');
+        ->and($sync)->toContain('sync_completed');
 });
 
 test('an idle sync that changes nothing writes no activity', function () {

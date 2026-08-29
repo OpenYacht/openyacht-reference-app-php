@@ -83,7 +83,7 @@ class ImportService
         $yacht = ImportedYacht::query()->where('listing_copy_id', $copy->id)->first();
 
         if ($yacht !== null) {
-            activity('sync')
+            activity('federation')
                 ->withProperties(['name' => $yacht->name, 'authority' => $copy->authority_domain])
                 ->event('import_removed')
                 ->log("Removed imported listing \"{$yacht->name}\" — withdrawn by {$copy->authority_domain}");

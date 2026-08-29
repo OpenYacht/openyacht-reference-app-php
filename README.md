@@ -21,7 +21,7 @@ This app is reference material first, installable product second. It exists so a
 - Node-directory discovery (FP-16): a directory admin page with the vendored advisory phonebook (canonical-URL-only refresh, searchable, add-as-partner through the exact same TOFU path as a hand-typed domain) and this node's own listing consent — findability status plus the signed list/delist/amend requests (also via `openyacht:listing-token`)
 
 **Application shell**
-- Roles and permissions (permission-based authorization throughout — roles are UI), an activity log of admin and federation events with a configurable retention window, translation-ready strings
+- Roles and permissions (permission-based authorization throughout — roles are UI), an activity log of admin and federation events — the audit trail (partnerships, shares, imports, withdrawals) kept as evidence while only the high-volume sync summaries are pruned on a retention window — translation-ready strings
 - Unified read API (`/api/v1/yachts`) carrying own + imported inventory in the wire-schema shape, with hashed API keys, scopes, and per-key rate limiting — so the node can feed a public website
 - Listing pages with shared card grid and faceted filtering (search, location, category, size)
 

@@ -326,9 +326,13 @@ const runCleanup = () => router.post(prune.url(), {}, { preserveScroll: true });
                 <div class="space-y-1">
                     <h2 class="font-medium">Cleanup</h2>
                     <p class="max-w-xl text-sm text-muted">
-                        A daily task removes entries older than the retention
-                        window. Set it to <strong>0</strong> to keep everything
-                        forever. {{ retention.total }} entries are stored now.
+                        A daily task removes only the per-run sync summaries
+                        older than the retention window. The audit trail —
+                        partnerships, shares, imports, and withdrawals — is
+                        always kept, since it is the record of when a listing
+                        was displayed. Set it to <strong>0</strong> to keep the
+                        summaries too. {{ retention.total }} entries are stored
+                        now.
                     </p>
                 </div>
                 <div class="flex items-end gap-2">

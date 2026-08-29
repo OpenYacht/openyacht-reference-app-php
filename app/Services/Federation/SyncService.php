@@ -138,6 +138,8 @@ class SyncService
         // A run that changed nothing is left unlogged — an idle hourly
         // poll should not bury the events that matter. Runs that actually
         // moved listings are recorded so the sync is visible in the log.
+        // This summary is the one prunable event (channel 'sync'); the
+        // per-listing changes above are audit and go to 'federation'.
         if ($created + $updated + $tombstoned > 0) {
             activity('sync')
                 ->performedOn($partner)
@@ -181,7 +183,7 @@ class SyncService
                     'listing_updated_at' => isset($item['updated_at']) ? Carbon::parse($item['updated_at']) : now(),
                 ]);
 
-                activity('sync')
+                activity('federation')
                     ->performedOn($copy)
                     ->withProperties(['name' => $copy->name, 'partner' => $partner->domain, 'status' => $status->value])
                     ->event('listing_tombstoned')
@@ -226,7 +228,7 @@ class SyncService
             $this->imports->refresh($copy);
 
             if ($previousStatus !== null && $previousStatus !== $copy->status->value) {
-                activity('sync')
+                activity('federation')
                     ->performedOn($copy)
                     ->withProperties(['name' => $copy->name, 'partner' => $partner->domain, 'from' => $previousStatus, 'to' => $copy->status->value])
                     ->event('listing_status_changed')

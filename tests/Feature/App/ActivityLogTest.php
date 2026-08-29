@@ -80,30 +80,46 @@ test('the retention window rejects negative and over-long values', function () {
         ->assertSessionHasErrors('retention_days');
 });
 
-test('cleanup removes entries past the retention window and keeps recent ones', function () {
-    $old = logEntryAgedDays('federation', 'partner_approved', 120);
-    $recent = logEntryAgedDays('federation', 'partner_approved', 5);
+test('cleanup removes old sync summaries but keeps recent ones and the audit trail', function () {
+    $oldSummary = logEntryAgedDays('sync', 'sync_completed', 120);
+    $recentSummary = logEntryAgedDays('sync', 'sync_completed', 5);
+    $oldAudit = logEntryAgedDays('federation', 'partner_approved', 120);
     Setting::set(ActivityLogPruner::RETENTION_SETTING, 30);
 
     $this->actingAs(settingsAdmin())
         ->post(route('activity-log.prune'))
         ->assertRedirect();
 
-    expect(Activity::find($old->id))->toBeNull()
-        ->and(Activity::find($recent->id))->not->toBeNull();
+    expect(Activity::find($oldSummary->id))->toBeNull()
+        ->and(Activity::find($recentSummary->id))->not->toBeNull()
+        // The audit trail is evidence and is kept regardless of age.
+        ->and(Activity::find($oldAudit->id))->not->toBeNull();
 });
 
-test('a retention of zero keeps everything forever', function () {
-    $old = logEntryAgedDays('federation', 'partner_approved', 900);
+test('the audit trail is never pruned even far past the retention window', function () {
+    $partner = logEntryAgedDays('federation', 'partner_approved', 900);
+    $sharing = logEntryAgedDays('sharing', 'visibility_changed', 900);
+    $withdrawal = logEntryAgedDays('federation', 'listing_tombstoned', 900);
+    Setting::set(ActivityLogPruner::RETENTION_SETTING, 1);
+
+    app(ActivityLogPruner::class)->prune();
+
+    expect(Activity::find($partner->id))->not->toBeNull()
+        ->and(Activity::find($sharing->id))->not->toBeNull()
+        ->and(Activity::find($withdrawal->id))->not->toBeNull();
+});
+
+test('a retention of zero keeps even the sync summaries forever', function () {
+    $old = logEntryAgedDays('sync', 'sync_completed', 900);
     Setting::set(ActivityLogPruner::RETENTION_SETTING, 0);
 
     expect(app(ActivityLogPruner::class)->prune())->toBe(0)
         ->and(Activity::find($old->id))->not->toBeNull();
 });
 
-test('the scheduled command prunes with the configured retention', function () {
-    $old = logEntryAgedDays('federation', 'partner_approved', 120);
-    $recent = logEntryAgedDays('federation', 'partner_approved', 5);
+test('the scheduled command prunes old sync summaries with the configured retention', function () {
+    $old = logEntryAgedDays('sync', 'sync_completed', 120);
+    $recent = logEntryAgedDays('sync', 'sync_completed', 5);
     Setting::set(ActivityLogPruner::RETENTION_SETTING, 30);
 
     $this->artisan('openyacht:prune-activity-log')->assertSuccessful();
