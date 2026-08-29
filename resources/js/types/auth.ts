@@ -20,6 +20,7 @@ export type Auth = {
     canManageOwnCharterYachts: boolean;
     canViewPartnerListings: boolean;
     canManageSettings: boolean;
+    canViewActivityLog: boolean;
 };
 
 export type Passkey = {

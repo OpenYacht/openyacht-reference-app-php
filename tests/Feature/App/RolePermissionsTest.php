@@ -29,6 +29,7 @@ test('the default matrix follows the role scope table', function () {
             Permission::ManageMedia->value,
             Permission::ManageContacts->value,
             Permission::ManageSettings->value,
+            Permission::ViewActivityLog->value,
         ])
         ->and($permissionsOf(Role::Broker))
         ->toEqualCanonicalizing([

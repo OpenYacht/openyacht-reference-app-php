@@ -53,6 +53,7 @@ class HandleInertiaRequests extends Middleware
                 'canManageOwnCharterYachts' => $request->user()?->can('viewAny', CharterYacht::class) ?? false,
                 'canViewPartnerListings' => $request->user()?->can('viewAny', ListingCopy::class) ?? false,
                 'canManageSettings' => $request->user()?->can(Permission::ManageSettings->value) ?? false,
+                'canViewActivityLog' => $request->user()?->can(Permission::ViewActivityLog->value) ?? false,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

@@ -10,6 +10,7 @@ return [
     'contacts.manage' => 'Manage all contacts',
     'contacts.manage_own' => 'Manage own contacts',
     'settings.manage' => 'Manage settings',
+    'activity-log.view' => 'View activity log',
     'federation.manage' => 'Manage federation',
     'federation.notifications' => 'Receive federation notifications',
 

@@ -37,6 +37,9 @@ enum Permission: string
     /** General application settings. */
     case ManageSettings = 'settings.manage';
 
+    /** View the activity log (the audit trail of admin and federation events). */
+    case ViewActivityLog = 'activity-log.view';
+
     /** Federation configuration: partners, keys, sharing rules. */
     case ManageFederation = 'federation.manage';
 
@@ -71,6 +74,7 @@ enum Permission: string
                 self::ManageMedia,
                 self::ManageContacts,
                 self::ManageSettings,
+                self::ViewActivityLog,
             ],
             Role::Editor => [
                 self::ManageListings,

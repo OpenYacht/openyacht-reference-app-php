@@ -112,6 +112,10 @@ const mainNavItems = computed<NavigationMenuItem[]>(() => [
                   to: toUrl(apiKeysIndex()),
                   active: isCurrentUrl(apiKeysIndex()),
               },
+          ]
+        : []),
+    ...(page.props.auth.canViewActivityLog
+        ? [
               {
                   label: 'Activity log',
                   icon: 'i-lucide-scroll-text',

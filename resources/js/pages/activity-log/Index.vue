@@ -316,7 +316,10 @@ const runCleanup = () => router.post(prune.url(), {}, { preserveScroll: true });
             </div>
         </div>
 
-        <div class="rounded-lg border border-default p-4">
+        <div
+            v-if="$page.props.auth.canManageSettings"
+            class="rounded-lg border border-default p-4"
+        >
             <div
                 class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
             >

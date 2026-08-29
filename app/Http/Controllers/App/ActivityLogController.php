@@ -24,7 +24,10 @@ class ActivityLogController extends Controller
 {
     public function index(Request $request, ActivityLogPruner $pruner): Response
     {
-        Gate::authorize(Permission::ManageSettings->value);
+        // Viewing the audit trail is its own permission; the destructive
+        // cleanup actions below still require ManageSettings, so a
+        // read-only auditor sees the log without the cleanup controls.
+        Gate::authorize(Permission::ViewActivityLog->value);
 
         $filters = [
             'log_name' => (string) $request->query('log_name', ''),

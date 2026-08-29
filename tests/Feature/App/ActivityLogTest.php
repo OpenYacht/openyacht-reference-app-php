@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Permission;
 use App\Enums\Role;
 use App\Models\Setting;
 use App\Models\User;
@@ -109,4 +110,17 @@ test('the scheduled command prunes with the configured retention', function () {
 
     expect(Activity::find($old->id))->toBeNull()
         ->and(Activity::find($recent->id))->not->toBeNull();
+});
+
+test('a user with only the view permission can read the log but not run cleanup', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo(Permission::ViewActivityLog->value);
+
+    $this->actingAs($user)->get(route('activity-log.index'))->assertOk();
+
+    // The destructive actions still require the settings permission.
+    $this->actingAs($user)->post(route('activity-log.prune'))->assertForbidden();
+    $this->actingAs($user)
+        ->put(route('activity-log.retention.update'), ['retention_days' => 30])
+        ->assertForbidden();
 });
