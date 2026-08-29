@@ -135,6 +135,17 @@ class SyncService
             'last_synced_at' => $watermark !== null ? Carbon::parse($watermark) : now(),
         ]);
 
+        // A run that changed nothing is left unlogged — an idle hourly
+        // poll should not bury the events that matter. Runs that actually
+        // moved listings are recorded so the sync is visible in the log.
+        if ($created + $updated + $tombstoned > 0) {
+            activity('sync')
+                ->performedOn($partner)
+                ->withProperties(['created' => $created, 'updated' => $updated, 'tombstoned' => $tombstoned])
+                ->event('sync_completed')
+                ->log("Synced {$partner->domain}: {$created} new, {$updated} updated, {$tombstoned} withdrawn");
+        }
+
         return new SyncResult($created, $updated, $tombstoned);
     }
 
@@ -170,6 +181,12 @@ class SyncService
                     'listing_updated_at' => isset($item['updated_at']) ? Carbon::parse($item['updated_at']) : now(),
                 ]);
 
+                activity('sync')
+                    ->performedOn($copy)
+                    ->withProperties(['name' => $copy->name, 'partner' => $partner->domain, 'status' => $status->value])
+                    ->event('listing_tombstoned')
+                    ->log("Synced listing \"{$copy->name}\" from {$partner->domain} was withdrawn ({$status->value})");
+
                 // The listing ended: its projection and cached media are
                 // removed per the usage terms (ID-7, ID-10).
                 $this->imports->expire($copy);
@@ -177,6 +194,11 @@ class SyncService
 
             return 'tombstoned';
         }
+
+        $previousStatus = ListingCopy::query()
+            ->where('federation_partner_id', $partner->id)
+            ->where('canonical_uri', $canonicalUri)
+            ->value('status');
 
         $copy = ListingCopy::query()->updateOrCreate(
             [
@@ -202,6 +224,14 @@ class SyncService
 
         if (! $copy->wasRecentlyCreated) {
             $this->imports->refresh($copy);
+
+            if ($previousStatus !== null && $previousStatus !== $copy->status->value) {
+                activity('sync')
+                    ->performedOn($copy)
+                    ->withProperties(['name' => $copy->name, 'partner' => $partner->domain, 'from' => $previousStatus, 'to' => $copy->status->value])
+                    ->event('listing_status_changed')
+                    ->log("Synced listing \"{$copy->name}\" from {$partner->domain} is now {$copy->status->value}");
+            }
         }
 
         // Sync is not publication: the copy is always stored, and whether

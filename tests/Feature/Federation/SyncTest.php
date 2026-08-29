@@ -4,6 +4,7 @@ use App\Enums\ListingStatus;
 use App\Enums\Role;
 use App\Models\FederationKey;
 use App\Models\FederationPartner;
+use App\Models\ImportedYacht;
 use App\Models\ListingCopy;
 use App\Models\User;
 use App\Services\Federation\PartnerAwaitingApproval;
@@ -11,6 +12,7 @@ use App\Services\Federation\SyncService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Spatie\Activitylog\Models\Activity;
 
 beforeEach(function () {
     config(['openyacht.domain' => 'this-node.example']);
@@ -305,4 +307,68 @@ test('sale and charter copies are never mixed in one synced list', function () {
 
     expect($names('synced-listings.index'))->toBe(['SALE COPY'])
         ->and($names('synced-charter-listings.index'))->toBe(['CHARTER COPY']);
+});
+
+test('sync records federation activity for status changes, tombstones, and removals', function () {
+    $partner = FederationPartner::factory()->verified()->create([
+        'domain' => 'openyacht.partner.example',
+        'last_synced_at' => Carbon::parse('2026-08-01T00:00:00Z'),
+    ]);
+
+    // One copy whose status changes upstream (active -> under_offer)...
+    ListingCopy::factory()->for($partner, 'partner')->create([
+        'federation_partner_id' => $partner->id,
+        'canonical_uri' => 'https://openyacht.partner.example/openyacht/v1/listings/uuid-1',
+        'authority_domain' => 'openyacht.partner.example',
+        'name' => 'SEA BREEZE',
+        'status' => ListingStatus::Active,
+    ]);
+
+    // ...and one that is imported and then withdrawn (sold) upstream.
+    $sold = ListingCopy::factory()->for($partner, 'partner')->create([
+        'federation_partner_id' => $partner->id,
+        'canonical_uri' => 'https://openyacht.partner.example/openyacht/v1/listings/uuid-2',
+        'authority_domain' => 'openyacht.partner.example',
+        'name' => 'BLUE MARLIN',
+        'status' => ListingStatus::Active,
+    ]);
+    ImportedYacht::factory()->create([
+        'listing_copy_id' => $sold->id,
+        'name' => 'BLUE MARLIN',
+    ]);
+
+    Http::fake([
+        'openyacht.partner.example/*' => Http::response(listingsResponse([
+            listingItem('openyacht.partner.example', 'uuid-1', ['status' => 'under_offer']),
+            [
+                'id' => 'https://openyacht.partner.example/openyacht/v1/listings/uuid-2',
+                'tombstone' => true,
+                'status' => 'sold',
+                'updated_at' => '2026-08-21T11:00:00Z',
+            ],
+        ])),
+    ]);
+
+    app(SyncService::class)->sync($partner);
+
+    $events = Activity::query()->where('log_name', 'sync')->pluck('event')->all();
+
+    expect($events)->toContain('listing_status_changed')
+        ->toContain('listing_tombstoned')
+        ->toContain('import_removed')
+        ->toContain('sync_completed');
+});
+
+test('an idle sync that changes nothing writes no activity', function () {
+    $partner = FederationPartner::factory()->verified()->create([
+        'domain' => 'openyacht.partner.example',
+    ]);
+
+    Http::fake([
+        'openyacht.partner.example/*' => Http::response(listingsResponse([])),
+    ]);
+
+    app(SyncService::class)->sync($partner);
+
+    expect(Activity::query()->where('log_name', 'sync')->count())->toBe(0);
 });
