@@ -57,6 +57,31 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Partner Staleness
+    |--------------------------------------------------------------------------
+    |
+    | How long a partner may stay unreachable before this node stops
+    | presenting its copies as current (federation-protocol.md §Health and
+    | Failure Handling). Two thresholds, in days: flag_after_days marks every
+    | copy stale in the admin UI and in the data API's provenance block
+    | (FP-15, a MUST); hide_after_days withholds them from public display
+    | entirely (a SHOULD) while leaving them visible, and marked, to
+    | operators.
+    |
+    | The second threshold is load-bearing rather than decorative: an
+    | authority that simply disappears — DNS pulled, domain moved, brokerage
+    | folded — can never send a tombstone, so nothing else in the protocol
+    | ever removes its listings from this node's public output.
+    |
+    */
+
+    'staleness' => [
+        'flag_after_days' => (int) env('OPENYACHT_STALE_FLAG_DAYS', 7),
+        'hide_after_days' => (int) env('OPENYACHT_STALE_HIDE_DAYS', 30),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Imported Media
     |--------------------------------------------------------------------------
     |

@@ -35,6 +35,7 @@ type ImportedYacht = {
     attribution_text: string | null;
     authority_domain: string;
     is_stale: boolean;
+    is_hidden: boolean;
     auto_published_at: string | null;
     media_synced_at: string | null;
     media_count: number;
@@ -107,9 +108,16 @@ const badges = (yacht: ImportedYacht): ListingBadge[] => [
               } satisfies ListingBadge,
           ]
         : []),
-    ...(yacht.is_stale
-        ? [{ label: 'Stale', color: 'warning' } satisfies ListingBadge]
-        : []),
+    ...(yacht.is_hidden
+        ? [
+              {
+                  label: 'Hidden from public',
+                  color: 'neutral',
+              } satisfies ListingBadge,
+          ]
+        : yacht.is_stale
+          ? [{ label: 'Stale', color: 'warning' } satisfies ListingBadge]
+          : []),
     ...(yacht.status !== 'active'
         ? [{ label: yacht.status_label } satisfies ListingBadge]
         : []),

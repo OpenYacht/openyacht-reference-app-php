@@ -6,6 +6,7 @@ use App\Enums\ListingStatus;
 use App\Models\Concerns\SearchableByPrice;
 use Database\Factories\ImportedYachtFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -63,6 +64,23 @@ class ImportedYacht extends Model
             'media_synced_at' => 'datetime',
             'auto_published_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Copies whose authority is still reachable enough to publish. The
+     * query-side companion to FederationPartner::isHidden() — it calls
+     * that model's own scope rather than restating the rule, so the
+     * predicate and the SQL cannot drift apart.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeFromDisplayablePartner(Builder $query): Builder
+    {
+        return $query->whereHas('copy.partner', function (Builder $partners): void {
+            /** @var Builder<FederationPartner> $partners */
+            $partners->publiclyDisplayable();
+        });
     }
 
     /**

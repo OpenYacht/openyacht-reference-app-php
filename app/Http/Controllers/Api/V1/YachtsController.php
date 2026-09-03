@@ -25,6 +25,11 @@ use Illuminate\Support\Collection;
  *
  * ?source=own gives just this node's inventory (a "featured yachts"
  * view); ?source=imported gives just the partner listings.
+ *
+ * Copies from a partner unreachable past the hide threshold are withheld
+ * from every response here — a vanished authority cannot tombstone its
+ * own listings, so this surface would otherwise serve them as current
+ * forever (FP-15; config openyacht.staleness).
  */
 class YachtsController extends Controller
 {
@@ -109,7 +114,8 @@ class YachtsController extends Controller
         if ($source !== 'own') {
             $items = $items->merge(
                 ImportedYacht::query()
-                    ->with(['media', 'copy.partner:id,domain,last_ok_at'])
+                    ->with(['media', 'copy.partner:id,domain,last_ok_at,created_at'])
+                    ->fromDisplayablePartner()
                     ->when($filteringByPrice, fn ($query) => $query->priceBetween($priceMin, $priceMax, $priceCurrency))
                     ->get()
                     ->map(fn (ImportedYacht $yacht): array => $this->importedItem($yacht)),
@@ -181,7 +187,8 @@ class YachtsController extends Controller
     {
         if (preg_match('/^imported-(\d+)$/', $key, $matches) === 1) {
             $imported = ImportedYacht::query()
-                ->with(['media', 'copy.partner:id,domain,last_ok_at'])
+                ->with(['media', 'copy.partner:id,domain,last_ok_at,created_at'])
+                ->fromDisplayablePartner()
                 ->find((int) $matches[1]);
 
             return $imported === null

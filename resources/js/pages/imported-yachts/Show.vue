@@ -41,6 +41,7 @@ type Yacht = {
     summary: string | null;
     attribution_text: string | null;
     is_stale: boolean;
+    is_hidden: boolean;
     hero: SrcsetMap;
     gallery: GalleryItem[];
     remote_media: RemoteMedia;
@@ -247,7 +248,13 @@ const payloadJson = computed(() =>
                         :label="yacht.status_label"
                     />
                     <UBadge
-                        v-if="yacht.is_stale"
+                        v-if="yacht.is_hidden"
+                        color="neutral"
+                        variant="outline"
+                        label="Hidden from public"
+                    />
+                    <UBadge
+                        v-else-if="yacht.is_stale"
                         color="warning"
                         variant="outline"
                         label="Stale"

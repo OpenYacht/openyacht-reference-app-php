@@ -38,6 +38,7 @@ const props = defineProps<{
         verified: number;
         provisional: number;
         stale: number;
+        hidden: number;
     } | null;
     recentListings: RecentListing[] | null;
 }>();
@@ -108,12 +109,17 @@ const stats = computed<Stat[]>(() => {
             label: 'Verified partners',
             value: props.federation.verified,
             note:
-                props.federation.stale > 0
-                    ? `${props.federation.stale} stale — no successful sync in 7 days`
-                    : props.federation.provisional > 0
-                      ? `${props.federation.provisional} awaiting approval`
-                      : null,
-            noteTone: props.federation.stale > 0 ? 'warning' : 'muted',
+                props.federation.hidden > 0
+                    ? `${props.federation.hidden} unreachable — listings withheld from public output`
+                    : props.federation.stale > 0
+                      ? `${props.federation.stale} stale — no successful sync in 7 days`
+                      : props.federation.provisional > 0
+                        ? `${props.federation.provisional} awaiting approval`
+                        : null,
+            noteTone:
+                props.federation.stale > 0 || props.federation.hidden > 0
+                    ? 'warning'
+                    : 'muted',
             icon: 'i-lucide-network',
             href: toUrl(partnersIndex()),
         });

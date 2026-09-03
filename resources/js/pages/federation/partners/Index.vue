@@ -15,6 +15,7 @@ type Partner = {
     last_synced_at: string | null;
     consecutive_failures: number;
     is_stale: boolean;
+    is_hidden: boolean;
 };
 
 type Group = {
@@ -107,7 +108,14 @@ const trustColor = (level: string) =>
                             :label="partner.trust_level_label"
                         />
                         <UBadge
-                            v-if="partner.is_stale"
+                            v-if="partner.is_hidden"
+                            color="neutral"
+                            variant="outline"
+                            size="sm"
+                            label="Hidden from public"
+                        />
+                        <UBadge
+                            v-else-if="partner.is_stale"
                             color="warning"
                             variant="outline"
                             size="sm"

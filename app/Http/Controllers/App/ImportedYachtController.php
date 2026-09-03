@@ -50,7 +50,7 @@ class ImportedYachtController extends Controller
             'filters' => $filters,
             'categories' => $categories->all(),
             'yachts' => ImportedYacht::query()
-                ->with(['media', 'copy.partner:id,domain,last_ok_at'])
+                ->with(['media', 'copy.partner:id,domain,last_ok_at,created_at'])
                 ->where('type', $type)
                 ->when($filters['q'] !== '', fn ($query) => $query->where(
                     fn ($query) => $query
@@ -91,6 +91,7 @@ class ImportedYachtController extends Controller
                         'attribution_text' => $yacht->attribution_text,
                         'authority_domain' => $yacht->copy->authority_domain,
                         'is_stale' => $yacht->copy->partner->isStale(),
+                        'is_hidden' => $yacht->copy->partner->isHidden(),
                         // Review after, not before: policy-published rows
                         // are badged so an operator can skim what arrived
                         // with no human in the loop.
@@ -109,7 +110,7 @@ class ImportedYachtController extends Controller
     {
         Gate::authorize('view', $importedYacht);
 
-        $importedYacht->load(['media', 'copy.partner:id,domain,last_ok_at']);
+        $importedYacht->load(['media', 'copy.partner:id,domain,last_ok_at,created_at']);
         $payload = $importedYacht->copy->payload ?? [];
         $profile = $importedYacht->profileMedia();
 
@@ -133,6 +134,7 @@ class ImportedYachtController extends Controller
                 'summary' => $importedYacht->summary,
                 'attribution_text' => $importedYacht->attribution_text,
                 'is_stale' => $importedYacht->copy->partner->isStale(),
+                'is_hidden' => $importedYacht->copy->partner->isHidden(),
                 'hero' => $profile instanceof ImportedMedia ? $profile->urlsFor('crop_') : [],
                 'gallery' => $importedYacht->media
                     ->sortBy('sort')

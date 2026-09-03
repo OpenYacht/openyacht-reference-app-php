@@ -30,6 +30,7 @@ type Copy = {
     received_at: string;
     signature_verified: boolean;
     is_stale: boolean;
+    is_hidden: boolean;
     is_tombstoned: boolean;
     has_conflict: boolean;
     attribution: string | null;
@@ -89,9 +90,16 @@ const badges = (copy: Copy): ListingBadge[] => [
               } satisfies ListingBadge,
           ]
         : []),
-    ...(copy.is_stale
-        ? [{ label: 'Stale', color: 'warning' } satisfies ListingBadge]
-        : []),
+    ...(copy.is_hidden
+        ? [
+              {
+                  label: 'Hidden from public',
+                  color: 'neutral',
+              } satisfies ListingBadge,
+          ]
+        : copy.is_stale
+          ? [{ label: 'Stale', color: 'warning' } satisfies ListingBadge]
+          : []),
 ];
 </script>
 

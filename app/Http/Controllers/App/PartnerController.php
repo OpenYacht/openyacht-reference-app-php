@@ -53,6 +53,7 @@ class PartnerController extends Controller
                     'last_synced_at' => $partner->last_synced_at?->diffForHumans(),
                     'consecutive_failures' => $partner->consecutive_failures,
                     'is_stale' => $partner->isStale(),
+                    'is_hidden' => $partner->isHidden(),
                 ]),
             'groups' => PartnerGroup::query()
                 ->with('members:id,domain,node_name')
@@ -98,6 +99,7 @@ class PartnerController extends Controller
                 'consecutive_failures' => $partner->consecutive_failures,
                 'listing_copies_count' => $partner->listingCopies()->count(),
                 'is_stale' => $partner->isStale(),
+                'is_hidden' => $partner->isHidden(),
                 // null means every group granted (the pre-grants default).
                 'field_groups' => $partner->field_groups,
                 'acceptance_policy' => $partner->acceptance_policy->value,

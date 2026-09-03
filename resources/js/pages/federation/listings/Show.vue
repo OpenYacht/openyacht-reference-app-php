@@ -27,6 +27,7 @@ type Copy = {
     imported: boolean;
     importable: boolean;
     is_stale: boolean;
+    is_hidden: boolean;
     is_tombstoned: boolean;
     identity_conflicts: {
         with: string;
@@ -258,7 +259,13 @@ const payloadJson = computed(() => JSON.stringify(props.copy.payload, null, 2));
                         label="Imported"
                     />
                     <UBadge
-                        v-if="copy.is_stale"
+                        v-if="copy.is_hidden"
+                        color="neutral"
+                        variant="outline"
+                        label="Hidden from public"
+                    />
+                    <UBadge
+                        v-else-if="copy.is_stale"
                         color="warning"
                         variant="outline"
                         label="Stale"

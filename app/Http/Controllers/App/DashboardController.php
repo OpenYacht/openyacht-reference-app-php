@@ -85,13 +85,18 @@ class DashboardController extends Controller
      */
     private function federation(): array
     {
-        $partners = FederationPartner::query()->get(['id', 'trust_level', 'last_ok_at']);
+        $partners = FederationPartner::query()->get(['id', 'trust_level', 'last_ok_at', 'created_at']);
 
         return [
             'verified' => $partners->where('trust_level', TrustLevel::Verified)->count(),
             'provisional' => $partners->where('trust_level', TrustLevel::Provisional)->count(),
             'stale' => $partners
                 ->filter(fn (FederationPartner $partner): bool => $partner->trust_level === TrustLevel::Verified && $partner->isStale())
+                ->count(),
+            // Withheld from public output, not deleted — the operator is
+            // told, so a partner's listings never just evaporate (FP-15).
+            'hidden' => $partners
+                ->filter(fn (FederationPartner $partner): bool => $partner->trust_level === TrustLevel::Verified && $partner->isHidden())
                 ->count(),
         ];
     }

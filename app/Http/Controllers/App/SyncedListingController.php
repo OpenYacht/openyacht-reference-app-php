@@ -47,7 +47,7 @@ class SyncedListingController extends Controller
             'filters' => $filters,
             'categories' => $categories->all(),
             'copies' => ListingCopy::query()
-                ->with(['partner:id,domain,node_name,last_ok_at', 'import:id,listing_copy_id'])
+                ->with(['partner:id,domain,node_name,last_ok_at,created_at', 'import:id,listing_copy_id'])
                 ->where('type', $type)
                 // A partner whose import type preference excludes this
                 // type stays out of the review queue entirely — the copy
@@ -100,6 +100,7 @@ class SyncedListingController extends Controller
                     'received_at' => $copy->received_at->diffForHumans(),
                     'signature_verified' => $copy->signature_verified,
                     'is_stale' => $copy->partner->isStale(),
+                    'is_hidden' => $copy->partner->isHidden(),
                     'is_tombstoned' => $copy->tombstoned_at !== null,
                     'has_conflict' => $copy->hasUnreviewedConflict(),
                     'attribution' => data_get($copy->payload, 'usage.attribution_required') === true
@@ -119,7 +120,7 @@ class SyncedListingController extends Controller
     {
         Gate::authorize('view', $copy);
 
-        $copy->load('partner:id,domain,node_name,last_ok_at');
+        $copy->load('partner:id,domain,node_name,last_ok_at,created_at');
         $payload = $copy->payload ?? [];
 
         $descriptionSections = data_get($payload, 'descriptions');
@@ -138,6 +139,7 @@ class SyncedListingController extends Controller
                 'importable' => $copy->tombstoned_at === null
                     && data_get($payload, 'usage.display') !== false,
                 'is_stale' => $copy->partner->isStale(),
+                'is_hidden' => $copy->partner->isHidden(),
                 'is_tombstoned' => $copy->tombstoned_at !== null,
                 // ID-9: hard-matched vessels are retained and flagged,
                 // never auto-resolved — dismissing the flag is the human

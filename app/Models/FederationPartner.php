@@ -7,8 +7,10 @@ use App\Enums\FieldGroup;
 use App\Enums\ImportTypes;
 use App\Enums\SharingScope;
 use App\Enums\TrustLevel;
+use Carbon\CarbonInterface;
 use Database\Factories\FederationPartnerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -209,7 +211,55 @@ class FederationPartner extends Model
      */
     public function isStale(): bool
     {
-        return $this->last_ok_at !== null
-            && $this->last_ok_at->lt(now()->subDays(7));
+        return $this->unreachableSince()->lt($this->thresholdFor('flag_after_days'));
+    }
+
+    /**
+     * A partner unreachable far beyond that threshold has its copies
+     * withheld from public display — the data API and everything built on
+     * it — while staying visible, and marked, to operators.
+     *
+     * This is the only thing that ever drops a vanished authority's
+     * listings: it cannot send a tombstone once it stops answering, so
+     * without this they would be served as current indefinitely.
+     *
+     * // federation-protocol.md §Health and Failure Handling
+     */
+    public function isHidden(): bool
+    {
+        return $this->unreachableSince()->lt($this->thresholdFor('hide_after_days'));
+    }
+
+    /**
+     * The SQL mirror of isHidden(), for filtering copies out of public
+     * queries. The two MUST stay mirrored: the predicate answers for one
+     * partner, the scope constrains a query, and nothing else decides
+     * whether a partner's copies may be shown publicly.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopePubliclyDisplayable(Builder $query): Builder
+    {
+        return $query->whereRaw(
+            'COALESCE(last_ok_at, created_at) >= ?',
+            [$this->thresholdFor('hide_after_days')->toDateTimeString()],
+        );
+    }
+
+    /**
+     * The instant this partner was last known reachable. A partnership
+     * that has never once synced successfully falls back to when it was
+     * added — otherwise it would never age, and "never worked at all" is
+     * precisely the case an operator needs told about.
+     */
+    private function unreachableSince(): CarbonInterface
+    {
+        return $this->last_ok_at ?? $this->created_at ?? Carbon::now();
+    }
+
+    private function thresholdFor(string $key): CarbonInterface
+    {
+        return Carbon::now()->subDays((int) config("openyacht.staleness.{$key}"));
     }
 }

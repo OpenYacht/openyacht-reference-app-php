@@ -41,6 +41,7 @@ type Partner = {
     consecutive_failures: number;
     listing_copies_count: number;
     is_stale: boolean;
+    is_hidden: boolean;
     field_groups: string[] | null;
     acceptance_policy: string;
     sharing_scope: string;
@@ -291,7 +292,13 @@ const trustColor = (level: string) =>
                         :label="partner.trust_level_label"
                     />
                     <UBadge
-                        v-if="partner.is_stale"
+                        v-if="partner.is_hidden"
+                        color="neutral"
+                        variant="outline"
+                        label="Hidden from public"
+                    />
+                    <UBadge
+                        v-else-if="partner.is_stale"
                         color="warning"
                         variant="outline"
                         label="Stale"
@@ -302,6 +309,13 @@ const trustColor = (level: string) =>
                     <template v-if="partner.approved_by">
                         · approved by {{ partner.approved_by }}
                     </template>
+                </p>
+                <p v-if="partner.is_hidden" class="mt-1 text-sm text-muted">
+                    This partner has been unreachable long enough that its
+                    listings are no longer served publicly. The copies are kept
+                    and stay visible here — a partner that stops answering can
+                    never withdraw its own listings, so they would otherwise be
+                    published as current indefinitely.
                 </p>
             </div>
 
