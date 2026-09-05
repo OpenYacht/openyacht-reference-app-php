@@ -37,9 +37,9 @@ authority node and are **never redistributed over federation**.
 
 Every request must include an API key, supplied either way:
 
-| Method | Example |
-|--------|---------|
-| HTTP header | `X-API-Key: your-key-here` |
+| Method       | Example                               |
+| ------------ | ------------------------------------- |
+| HTTP header  | `X-API-Key: your-key-here`            |
 | Bearer token | `Authorization: Bearer your-key-here` |
 
 There is deliberately no `?api_key=` query-parameter form — query strings
@@ -68,8 +68,8 @@ should honour it and back off.
 Prices are stored and served **exactly as the listing's authority published
 them** — original amount, original currency, never rewritten. Comparability
 across currencies is provided at query time: the node refreshes the
-European Central Bank daily reference rates and converts your *search
-bounds* into each currency present in inventory.
+European Central Bank daily reference rates and converts your _search
+bounds_ into each currency present in inventory.
 
 - `price_min` / `price_max` are expressed in `price_currency` (default
   `USD`) and match listings in every currency at the current rates.

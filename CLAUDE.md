@@ -10,6 +10,7 @@ The Laravel Boost guidelines are specifically curated by Laravel maintainers for
 This application is a Laravel application running on PHP 8.4. You are an expert with the Laravel ecosystem. Always use the APIs that match the installed major version of each package — do not assume a version.
 
 Before relying on a package's API, confirm its installed version:
+
 - PHP packages: run `composer show --direct` to list direct dependencies with versions, or `composer show <vendor/package>` for a single package.
 - JS packages: check `package.json` for the installed versions.
 
@@ -85,7 +86,7 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 - Execute PHP in app context for debugging and testing code. Do not create models without user approval, prefer tests with factories instead. Prefer existing Artisan commands over custom tinker code.
 - Always use single quotes to prevent shell expansion: `php artisan tinker --execute 'Your::code();'`
-  - Double quotes for PHP strings inside: `php artisan tinker --execute 'User::where("active", true)->count();'`
+    - Double quotes for PHP strings inside: `php artisan tinker --execute 'User::where("active", true)->count();'`
 
 === php rules ===
 
@@ -184,17 +185,18 @@ Use Wayfinder to generate TypeScript functions for Laravel routes. Import from `
 # Inertia + Vue
 
 Vue components must have a single root element.
+
 - IMPORTANT: Activate `inertia-vue-development` when working with Inertia Vue client-side patterns.
 
 </laravel-boost-guidelines>
 
 ## 🎯 What This App Is
 
-This is the **OpenYacht PHP reference app** — reference material first, installable product second. It exists so a developer (or AI coding agent) can see a complete, conventional, working OpenYacht federation node and lift the patterns into their own system. Every architectural choice serves readability of the *protocol mechanics*; cleverness is a defect. Boring, idiomatic Laravel: thin controllers, explicit service classes, no bespoke abstractions where a framework convention exists.
+This is the **OpenYacht PHP reference app** — reference material first, installable product second. It exists so a developer (or AI coding agent) can see a complete, conventional, working OpenYacht federation node and lift the patterns into their own system. Every architectural choice serves readability of the _protocol mechanics_; cleverness is a defect. Boring, idiomatic Laravel: thin controllers, explicit service classes, no bespoke abstractions where a framework convention exists.
 
 - **Normative source**: the OpenYacht federation protocol specification at [github.com/OpenYacht/protocol](https://github.com/OpenYacht/protocol). The spec is authoritative; this app implements it.
 - **Spec cross-references in docblocks** at the point of implementation (e.g. `// federation-protocol.md §Request Signing`) so a reader lands in the right normative text from any file.
-- **Conformance-ID test convention**: every federation behaviour gets a Pest test grouped by its conformance ID from the spec's conformance checklist (`->group('FP-7')`, `->group('API-3')`, `->group('LS-8')`…). The test suite *is* the self-certification.
+- **Conformance-ID test convention**: every federation behaviour gets a Pest test grouped by its conformance ID from the spec's conformance checklist (`->group('FP-7')`, `->group('API-3')`, `->group('LS-8')`…). The test suite _is_ the self-certification.
 
 ## 📐 Standing Rules
 
@@ -214,4 +216,3 @@ This is the **OpenYacht PHP reference app** — reference material first, instal
 - The full setup and deployment recipe is in the [README](README.md).
 
 > This repository is developed on Windows + WSL2 + Laragon. The exact local binary paths, shell invocations, and deploy commands for that setup live in `CLAUDE.local.md` (gitignored); a contributor on another OS uses the standard commands above.
-
