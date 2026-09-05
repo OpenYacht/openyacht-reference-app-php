@@ -66,6 +66,8 @@ Email (password resets, federation alerts) defaults to the `log` mailer. For rea
 
 Zero-downtime deploys via [Deployer](https://deployer.org) — the committed `deploy.php` is the whole recipe, and this section is the server half. Any small VPS works; a 2-core / 4 GB instance (e.g. Hetzner's entry tier) runs the app, its queue worker, and MySQL comfortably. Every node is one `host()` stanza with instance-scoped names (deploy path, database, worker program, FPM pool), so a second node — on the same server or another — is one more stanza, not a second recipe.
 
+The recipe is written out for an instance named `openyacht-test` — the deploy path `~/openyacht-test`, the `openyacht-test` FPM pool and socket, the `openyacht-test-worker` supervisor program, the `openyacht_test` database. That is a worked example, not a requirement: pick your own instance name and replace `openyacht-test` with it throughout this section and in your `host()` stanza.
+
 The block below targets **Ubuntu 26.04 LTS**, which carries PHP 8.5 and Node 22 in its own archive, so no third-party repositories are involved. On Ubuntu 24.04, add `add-apt-repository -y ppa:ondrej/php` first and read `php8.5` as `php8.4` throughout. The PPA is not an option on 26.04 — it publishes nothing for `resolute` — which is why the native packages are the better path there anyway.
 
 Provision once, as root — this creates the unprivileged `deployer` user the recipe connects as:
