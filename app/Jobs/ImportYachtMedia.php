@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\ImportedMedia;
 use App\Models\ImportedYacht;
 use App\Services\Federation\OutboundUrlGuard;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Collection;
@@ -24,12 +25,29 @@ use Throwable;
  * sizes (listing-schema.md §Media). Inbound media is untrusted (FP-14):
  * https only, the response must actually be an image, and the sha256 is
  * verified whenever the authority provided one.
+ *
+ * One job covers a whole yacht — a large gallery is dozens of downloads
+ * and several renditions each, well past the worker's 60-second default
+ * — so the job declares its own timeout. The queue's retry_after must
+ * exceed it (see .env.example), or a still-running import is handed to
+ * a second worker as a duplicate.
  */
-class ImportYachtMedia implements ShouldQueue
+class ImportYachtMedia implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
     private const MAX_DOWNLOAD_BYTES = 30 * 1024 * 1024;
+
+    /**
+     * Seconds a single yacht's import may run before the worker kills it.
+     */
+    public int $timeout = 900;
+
+    /**
+     * How long a dispatched job blocks a duplicate for the same yacht; a
+     * job that dies without releasing its lock frees up after this.
+     */
+    public int $uniqueFor = 960;
 
     /**
      * Imports removed before the queue catches up are simply skipped.
@@ -39,6 +57,16 @@ class ImportYachtMedia implements ShouldQueue
     public $deleteWhenMissingModels = true;
 
     public function __construct(public ImportedYacht $yacht) {}
+
+    /**
+     * One pending import per yacht: a second dispatch while one is queued
+     * is a no-op, since the queued job reads the copy's current payload
+     * when it runs.
+     */
+    public function uniqueId(): string
+    {
+        return (string) $this->yacht->id;
+    }
 
     public function handle(): void
     {

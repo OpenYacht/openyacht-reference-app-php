@@ -14,6 +14,11 @@ Artisan::command('inspire', function () {
 // command. // api-design.md §Listings
 Schedule::command('openyacht:sync')->hourly();
 
+// Safety net for media imports whose job died (worker killed, tries
+// exhausted): re-queue anything still missing or out of date. Pending
+// imports are skipped — the job is unique per yacht.
+Schedule::command('openyacht:sync-media')->hourly();
+
 // Enforce the activity-log retention window daily (0 days = keep forever).
 Schedule::command('openyacht:prune-activity-log')->daily();
 

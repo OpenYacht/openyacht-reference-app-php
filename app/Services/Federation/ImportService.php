@@ -73,9 +73,24 @@ class ImportService
 
         $yacht->update($this->projection($copy));
 
-        if ($this->mediaChanged($yacht)) {
+        if ($this->needsMediaImport($yacht)) {
             ImportYachtMedia::dispatch($yacht);
         }
+    }
+
+    /**
+     * Whether the yacht's local renditions are missing or no longer match
+     * the copy's source media (ID-7). Shared by refresh() and the
+     * openyacht:sync-media sweep that re-queues whatever a lost job left
+     * behind.
+     */
+    public function needsMediaImport(ImportedYacht $yacht): bool
+    {
+        if ($yacht->media_synced_at === null) {
+            return true;
+        }
+
+        return $this->mediaChanged($yacht);
     }
 
     /**
@@ -144,8 +159,7 @@ class ImportService
             ->sort()
             ->values();
 
-        $held = $yacht->media()
-            ->get()
+        $held = $yacht->media
             ->map(fn ($media): string => $media->source_url.'|'.($media->source_sha256 ?? ''))
             ->sort()
             ->values();

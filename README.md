@@ -100,6 +100,7 @@ Redis is in that list because the application's defaults are deliberately depend
 CACHE_STORE=redis
 SESSION_DRIVER=redis
 QUEUE_CONNECTION=redis
+REDIS_QUEUE_RETRY_AFTER=960
 REDIS_CLIENT=phpredis
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
@@ -170,6 +171,8 @@ stopwaitsecs=3600
 ```
 
 Run `supervisorctl update` only after the first deploy has created `current/`, or the program restart-loops against a path that does not exist yet.
+
+The worker's default 60-second job timeout is far too short for a media import — one job downloads a yacht's whole gallery and renders several sizes of every image — so `ImportYachtMedia` declares its own (900 seconds); no `--timeout` flag is needed. What *is* needed is the queue's `retry_after` (the `REDIS_QUEUE_RETRY_AFTER` line above, or `DB_QUEUE_RETRY_AFTER` on the database driver) set above that timeout, or a still-running import is handed to a second worker as a duplicate. The hourly `openyacht:sync-media` sweep re-queues any import that died anyway.
 
 **Before every deploy** — the same three gates, every time; deploys pull from the repository, so anything unpushed or unchecked simply is not what ships:
 

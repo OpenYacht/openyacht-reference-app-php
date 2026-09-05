@@ -5,6 +5,7 @@ use App\Enums\Role;
 use App\Jobs\ImportYachtMedia;
 use App\Models\FederationKey;
 use App\Models\FederationPartner;
+use App\Models\ImportedMedia;
 use App\Models\ImportedYacht;
 use App\Models\ListingCopy;
 use App\Models\User;
@@ -321,4 +322,44 @@ test('the imported list pages by 24 and filters by the partner behind the copy',
     expect(collect($filtered['yachts']['data'])->pluck('name')->all())->toBe(['BETA ONE'])
         ->and($filtered['yachts']['total'])->toBe(1)
         ->and($filtered['filters']['partner'])->toBe((string) $beta->id);
+});
+
+test('a media import is not queued twice while one is pending', function () {
+    Bus::fake();
+    $yacht = ImportedYacht::factory()->create();
+
+    ImportYachtMedia::dispatch($yacht);
+    ImportYachtMedia::dispatch($yacht);
+
+    Bus::assertDispatchedTimes(ImportYachtMedia::class, 1);
+});
+
+test('the media sweep re-queues yachts whose media never synced or drifted from the copy', function () {
+    Bus::fake();
+
+    $neverSynced = ImportedYacht::factory()->create([
+        'listing_copy_id' => importableCopy()->id,
+        'media_synced_at' => null,
+    ]);
+
+    $current = ImportedYacht::factory()->create([
+        'listing_copy_id' => importableCopy()->id,
+        'media_synced_at' => now(),
+    ]);
+    ImportedMedia::factory()->create(['imported_yacht_id' => $current->id, 'kind' => 'profile', 'source_url' => 'https://media.partner.example/profile.jpg', 'sort' => 0]);
+    ImportedMedia::factory()->create(['imported_yacht_id' => $current->id, 'kind' => 'gallery', 'source_url' => 'https://media.partner.example/01.jpg', 'sort' => 1]);
+
+    $drifted = ImportedYacht::factory()->create([
+        'listing_copy_id' => importableCopy()->id,
+        'media_synced_at' => now(),
+    ]);
+    ImportedMedia::factory()->create(['imported_yacht_id' => $drifted->id, 'kind' => 'profile', 'source_url' => 'https://media.partner.example/replaced-profile.jpg', 'sort' => 0]);
+
+    $this->artisan('openyacht:sync-media')
+        ->expectsOutputToContain('2 imported yachts')
+        ->assertSuccessful();
+
+    Bus::assertDispatched(ImportYachtMedia::class, fn (ImportYachtMedia $job) => $job->yacht->is($neverSynced));
+    Bus::assertDispatched(ImportYachtMedia::class, fn (ImportYachtMedia $job) => $job->yacht->is($drifted));
+    Bus::assertNotDispatched(ImportYachtMedia::class, fn (ImportYachtMedia $job) => $job->yacht->is($current));
 });
