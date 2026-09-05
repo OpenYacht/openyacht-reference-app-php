@@ -3,19 +3,18 @@
 use App\Enums\Audience;
 use App\Jobs\SendChangeNotification;
 use App\Models\SaleYacht;
+use App\Models\WebhookEndpoint;
 use App\Services\ChangeNotifier;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
-    config([
-        'openyacht.change_notifications.urls' => ['https://consumer.example/hook'],
-        'openyacht.change_notifications.cooldown_minutes' => 0,
-    ]);
+    config(['openyacht.change_notifications.cooldown_minutes' => 0]);
 });
 
-test('nothing is sent when no urls are configured', function () {
-    config(['openyacht.change_notifications.urls' => []]);
+test('nothing is sent when no endpoint is active', function () {
+    WebhookEndpoint::factory()->inactive()->create();
     Queue::fake();
 
     expect(app(ChangeNotifier::class)->notify('sync:partner.example 1 created'))->toBeFalse();
@@ -23,8 +22,10 @@ test('nothing is sent when no urls are configured', function () {
     Queue::assertNothingPushed();
 })->group('demo-node');
 
-test('a notification is queued once per cooldown window, and force bypasses the debounce', function () {
+test('one job is queued per active endpoint, once per cooldown window, and force bypasses the debounce', function () {
     config(['openyacht.change_notifications.cooldown_minutes' => 15]);
+    [$first, $second] = WebhookEndpoint::factory()->count(2)->create();
+    WebhookEndpoint::factory()->inactive()->create();
     Queue::fake();
 
     $notifier = app(ChangeNotifier::class);
@@ -33,19 +34,18 @@ test('a notification is queued once per cooldown window, and force bypasses the 
         ->and($notifier->notify('debounced'))->toBeFalse()
         ->and($notifier->notify('forced', force: true))->toBeTrue();
 
-    Queue::assertPushed(SendChangeNotification::class, 2);
+    Queue::assertPushed(SendChangeNotification::class, 4);
+    Queue::assertPushed(SendChangeNotification::class, fn (SendChangeNotification $job) => $job->endpoint->is($first) && $job->reason === 'first');
+    Queue::assertPushed(SendChangeNotification::class, fn (SendChangeNotification $job) => $job->endpoint->is($second) && $job->reason === 'forced');
 })->group('demo-node');
 
-test('the delivery job posts the minimal body to every url with the shared secret header', function () {
-    config([
-        'openyacht.change_notifications.urls' => ['https://consumer.example/hook', 'https://other.example/hook'],
-        'openyacht.change_notifications.secret' => 'shhh',
-    ]);
-    Http::fake();
+test('the delivery job posts the minimal body with the endpoint\'s own secret header and records the delivery', function () {
+    $endpoint = WebhookEndpoint::factory()->withSecret('shhh')->create(['url' => 'https://consumer.example/hook']);
+    Http::fake(['consumer.example/*' => Http::response('', 204)]);
 
-    (new SendChangeNotification('sync:partner.example 3 created, 1 updated, 0 tombstoned', ['created' => 3, 'updated' => 1]))->handle();
+    (new SendChangeNotification($endpoint, 'sync:partner.example 3 created, 1 updated, 0 tombstoned', ['created' => 3, 'updated' => 1]))->handle();
 
-    Http::assertSentCount(2);
+    Http::assertSentCount(1);
     Http::assertSent(function ($request) {
         return $request->url() === 'https://consumer.example/hook'
             && $request->hasHeader('X-OpenYacht-Webhook-Secret', 'shhh')
@@ -53,17 +53,82 @@ test('the delivery job posts the minimal body to every url with the shared secre
             && $request['counts'] === ['created' => 3, 'updated' => 1]
             && is_string($request['timestamp']);
     });
+
+    $endpoint->refresh();
+    $delivery = $endpoint->deliveries()->sole();
+
+    expect($delivery->succeeded)->toBeTrue()
+        ->and($delivery->http_status)->toBe(204)
+        ->and($delivery->attempt)->toBe(1)
+        ->and($delivery->reason)->toBe('sync:partner.example 3 created, 1 updated, 0 tombstoned')
+        ->and($endpoint->last_succeeded_at)->not->toBeNull()
+        ->and($endpoint->consecutive_failures)->toBe(0);
 })->group('demo-node');
 
-test('a failing consumer url is logged, never thrown', function () {
+test('an endpoint without a secret is posted to without the header', function () {
+    $endpoint = WebhookEndpoint::factory()->create(['url' => 'https://consumer.example/hook']);
+    Http::fake();
+
+    (new SendChangeNotification($endpoint, 'reason'))->handle();
+
+    Http::assertSent(fn ($request) => ! $request->hasHeader('X-OpenYacht-Webhook-Secret'));
+})->group('demo-node');
+
+test('a failing consumer is recorded as a failure, never thrown', function () {
+    $endpoint = WebhookEndpoint::factory()->create(['url' => 'https://consumer.example/hook']);
     Http::fake(['consumer.example/*' => Http::response('', 500)]);
 
-    (new SendChangeNotification('reason'))->handle();
+    (new SendChangeNotification($endpoint, 'reason'))->handle();
 
     Http::assertSentCount(1);
+
+    $endpoint->refresh();
+    $delivery = $endpoint->deliveries()->sole();
+
+    expect($delivery->succeeded)->toBeFalse()
+        ->and($delivery->http_status)->toBe(500)
+        ->and($delivery->error)->toBe('HTTP 500')
+        ->and($endpoint->last_failed_at)->not->toBeNull()
+        ->and($endpoint->consecutive_failures)->toBe(1);
+})->group('demo-node');
+
+test('a connection error is recorded with its message and a success resets the failure streak', function () {
+    $endpoint = WebhookEndpoint::factory()->create(['url' => 'https://consumer.example/hook']);
+    $calls = 0;
+    Http::fake(['consumer.example/*' => function () use (&$calls) {
+        if (++$calls <= 2) {
+            throw new ConnectionException('Could not resolve host');
+        }
+
+        return Http::response('', 200);
+    }]);
+
+    (new SendChangeNotification($endpoint, 'reason'))->handle();
+    (new SendChangeNotification($endpoint, 'reason'))->handle();
+
+    expect($endpoint->refresh()->consecutive_failures)->toBe(2)
+        ->and($endpoint->deliveries()->latest('id')->first()->error)->toBe('Could not resolve host')
+        ->and($endpoint->deliveries()->latest('id')->first()->http_status)->toBeNull();
+
+    (new SendChangeNotification($endpoint, 'reason'))->handle();
+
+    expect($endpoint->refresh()->consecutive_failures)->toBe(0)
+        ->and($endpoint->deliveries()->count())->toBe(3);
+})->group('demo-node');
+
+test('the per-endpoint delivery log is bounded', function () {
+    $endpoint = WebhookEndpoint::factory()->create();
+
+    foreach (range(1, WebhookEndpoint::DELIVERY_LOG_SIZE + 5) as $index) {
+        $endpoint->recordDelivery("reason {$index}", 1, true, 200, null, 10);
+    }
+
+    expect($endpoint->deliveries()->count())->toBe(WebhookEndpoint::DELIVERY_LOG_SIZE)
+        ->and($endpoint->deliveries()->oldest('id')->first()->reason)->toBe('reason 6');
 })->group('demo-node');
 
 test('editing a publicly served listing notifies; drafts and audience-only changes stay quiet', function () {
+    WebhookEndpoint::factory()->create();
     Queue::fake();
 
     $draft = SaleYacht::factory()->create();
@@ -78,10 +143,10 @@ test('editing a publicly served listing notifies; drafts and audience-only chang
     $active->forceFill(['audience' => Audience::None])->save();
     $draft->update(['summary' => 'Still a draft.']);
     Queue::assertPushed(SendChangeNotification::class, 2);
-    Queue::assertPushed(SendChangeNotification::class, 2);
 })->group('demo-node');
 
-test('the artisan trigger sends immediately and reports when unconfigured', function () {
+test('the artisan trigger sends immediately and reports when no endpoint is active', function () {
+    WebhookEndpoint::factory()->create();
     Queue::fake();
 
     $this->artisan('openyacht:notify-change', ['--reason' => 'deploy'])
@@ -89,7 +154,7 @@ test('the artisan trigger sends immediately and reports when unconfigured', func
 
     Queue::assertPushed(SendChangeNotification::class, fn (SendChangeNotification $job) => $job->reason === 'deploy');
 
-    config(['openyacht.change_notifications.urls' => []]);
+    WebhookEndpoint::query()->update(['is_active' => false]);
 
     $this->artisan('openyacht:notify-change')->assertFailed();
 })->group('demo-node');

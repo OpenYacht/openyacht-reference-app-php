@@ -25,12 +25,12 @@ class OpenYachtNotifyChange extends Command
      *
      * @var string
      */
-    protected $description = 'Send the outbound change notification to every configured URL';
+    protected $description = 'Send the outbound change notification to every active webhook endpoint';
 
     public function handle(ChangeNotifier $notifier): int
     {
         if (! $notifier->notify((string) $this->option('reason'), force: true)) {
-            $this->warn('No change-notification URLs are configured (OPENYACHT_CHANGE_NOTIFY_URLS).');
+            $this->warn('No active webhook endpoints are configured — add one under Webhooks in the admin.');
 
             return self::FAILURE;
         }

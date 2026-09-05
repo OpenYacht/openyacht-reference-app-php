@@ -12,6 +12,7 @@ use App\Http\Controllers\App\PartnerGroupController;
 use App\Http\Controllers\App\RoleController;
 use App\Http\Controllers\App\SyncedListingController;
 use App\Http\Controllers\App\UserController;
+use App\Http\Controllers\App\WebhookEndpointController;
 use App\Http\Controllers\App\YachtController;
 use App\Support\ApiDocs\ApiDocGenerator;
 use Illuminate\Support\Facades\Route;
@@ -73,6 +74,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('api-keys', [ApiKeyController::class, 'store'])->name('api-keys.store');
     Route::put('api-keys/{apiKey}', [ApiKeyController::class, 'update'])->name('api-keys.update');
     Route::delete('api-keys/{apiKey}', [ApiKeyController::class, 'destroy'])->name('api-keys.destroy');
+
+    // Outbound change-notification webhooks (ChangeNotifier consumers).
+    Route::get('webhooks', [WebhookEndpointController::class, 'index'])->name('webhooks.index');
+    Route::post('webhooks', [WebhookEndpointController::class, 'store'])->name('webhooks.store');
+    Route::put('webhooks/{webhook}', [WebhookEndpointController::class, 'update'])->name('webhooks.update');
+    Route::delete('webhooks/{webhook}', [WebhookEndpointController::class, 'destroy'])->name('webhooks.destroy');
+    Route::post('webhooks/{webhook}/test', [WebhookEndpointController::class, 'test'])->name('webhooks.test');
 
     Route::get('activity-log', [ActivityLogController::class, 'index'])->name('activity-log.index');
     Route::put('activity-log/retention', [ActivityLogController::class, 'updateRetention'])->name('activity-log.retention.update');

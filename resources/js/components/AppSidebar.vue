@@ -23,6 +23,7 @@ import { index as rolesIndex } from '@/routes/roles';
 import { index as syncedCharterListingsIndex } from '@/routes/synced-charter-listings';
 import { index as syncedListingsIndex } from '@/routes/synced-listings';
 import { index as usersIndex } from '@/routes/users';
+import { index as webhooksIndex } from '@/routes/webhooks';
 import { index as yachtsIndex } from '@/routes/yachts';
 
 const page = usePage();
@@ -111,6 +112,12 @@ const mainNavItems = computed<NavigationMenuItem[]>(() => [
                   icon: 'i-lucide-key-round',
                   to: toUrl(apiKeysIndex()),
                   active: isCurrentUrl(apiKeysIndex()),
+              },
+              {
+                  label: 'Webhooks',
+                  icon: 'i-lucide-webhook',
+                  to: toUrl(webhooksIndex()),
+                  active: isCurrentUrl(webhooksIndex()),
               },
           ]
         : []),

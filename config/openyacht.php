@@ -169,19 +169,16 @@ return [
     |
     | Generic outbound "content changed" pings for consumers that cache or
     | pre-build this node's public output (e.g. a static-site deploy
-    | hook). Off unless URLs are configured. Fired once per applied sync
-    | cycle and on local edits that change public output — never per
-    | listing — and debounced by the cooldown; the POST body is minimal
-    | (timestamp, reason, counts) so consumers ask the data API for
-    | details. Vendor-neutral by design.
+    | hook). The receiving URLs are webhook endpoints managed in the admin
+    | (each with its own secret and delivery log); nothing fires until one
+    | is active. Fired once per applied sync cycle and on local edits that
+    | change public output — never per listing — and debounced by the
+    | cooldown; the POST body is minimal (timestamp, reason, counts) so
+    | consumers ask the data API for details. Vendor-neutral by design.
     |
     */
 
     'change_notifications' => [
-        // Comma-separated list of URLs to POST to.
-        'urls' => array_filter(array_map('trim', explode(',', (string) env('OPENYACHT_CHANGE_NOTIFY_URLS', '')))),
-        // Optional shared secret, sent as the X-OpenYacht-Webhook-Secret header.
-        'secret' => env('OPENYACHT_CHANGE_NOTIFY_SECRET'),
         'cooldown_minutes' => (int) env('OPENYACHT_CHANGE_NOTIFY_COOLDOWN', 15),
     ],
 
