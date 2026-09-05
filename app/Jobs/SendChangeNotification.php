@@ -16,10 +16,17 @@ use Illuminate\Support\Facades\Log;
  * endpoint's delivery log; a failed attempt is released back to the
  * queue with a backoff rather than thrown, so a consumer's 500 never
  * lands in failed_jobs, and gives up after $tries.
+ *
+ * Runs on its own `notifications` queue: the default queue carries media
+ * imports that take a minute each, and a deploy hook that fires two hours
+ * late defeats its purpose. The worker consumes `notifications,default`
+ * so a ping is always the next job taken.
  */
 class SendChangeNotification implements ShouldQueue
 {
     use Queueable;
+
+    public const QUEUE = 'notifications';
 
     public int $tries = 3;
 
@@ -34,7 +41,9 @@ class SendChangeNotification implements ShouldQueue
         public WebhookEndpoint $endpoint,
         public string $reason,
         public array $counts = [],
-    ) {}
+    ) {
+        $this->onQueue(self::QUEUE);
+    }
 
     public function handle(): void
     {

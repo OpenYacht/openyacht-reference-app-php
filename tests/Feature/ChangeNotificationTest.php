@@ -35,6 +35,7 @@ test('one job is queued per active endpoint, once per cooldown window, and force
         ->and($notifier->notify('forced', force: true))->toBeTrue();
 
     Queue::assertPushed(SendChangeNotification::class, 4);
+    Queue::assertPushedOn(SendChangeNotification::QUEUE, SendChangeNotification::class);
     Queue::assertPushed(SendChangeNotification::class, fn (SendChangeNotification $job) => $job->endpoint->is($first) && $job->reason === 'first');
     Queue::assertPushed(SendChangeNotification::class, fn (SendChangeNotification $job) => $job->endpoint->is($second) && $job->reason === 'forced');
 })->group('demo-node');

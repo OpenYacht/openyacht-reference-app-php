@@ -159,7 +159,7 @@ Then the queue worker and the scheduler — both load-bearing, since media impor
 ```ini
 ; /etc/supervisor/conf.d/openyacht-test-worker.conf
 [program:openyacht-test-worker]
-command=php8.5 /home/deployer/openyacht-test/current/artisan queue:work --sleep=3 --tries=3 --max-time=3600
+command=php8.5 /home/deployer/openyacht-test/current/artisan queue:work --queue=notifications,default --sleep=3 --tries=3 --max-time=3600
 user=deployer
 autostart=true
 autorestart=true
@@ -171,6 +171,8 @@ stopwaitsecs=3600
 ```
 
 Run `supervisorctl update` only after the first deploy has created `current/`, or the program restart-loops against a path that does not exist yet.
+
+The `--queue=notifications,default` order matters: outbound change-notification webhooks are dispatched on the `notifications` queue so a consumer's deploy hook fires as the very next job, instead of waiting behind a backlog of minute-long media imports on `default`. A worker started without the flag still drains `default` only and never sends a webhook.
 
 The worker's default 60-second job timeout is far too short for a media import — one job downloads a yacht's whole gallery and renders several sizes of every image — so `ImportYachtMedia` declares its own (900 seconds); no `--timeout` flag is needed. What *is* needed is the queue's `retry_after` (the `REDIS_QUEUE_RETRY_AFTER` line above, or `DB_QUEUE_RETRY_AFTER` on the database driver) set above that timeout, or a still-running import is handed to a second worker as a duplicate. The hourly `openyacht:sync-media` sweep re-queues any import that died anyway.
 
