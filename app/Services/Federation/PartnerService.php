@@ -5,6 +5,8 @@ namespace App\Services\Federation;
 use App\Enums\TrustLevel;
 use App\Models\FederationPartner;
 use App\Models\User;
+use App\Models\VisibilityEvent;
+use InvalidArgumentException;
 
 /**
  * Partner lifecycle: first contact (TOFU), key refresh with reinstall
@@ -27,6 +29,14 @@ class PartnerService
     public function add(string $domain): FederationPartner
     {
         $domain = strtolower(trim($domain));
+
+        // Defence in depth behind the form request and the inbound
+        // middleware: a node partnered with itself syncs its own listings
+        // back as partner copies.
+        if ($domain === strtolower((string) config('openyacht.domain'))) {
+            throw new InvalidArgumentException(__('federation.domain_is_self'));
+        }
+
         $document = $this->wellKnown->fetch($domain);
 
         $partner = FederationPartner::create([
@@ -175,5 +185,35 @@ class PartnerService
             ->log("Partner {$partner->domain} blocked");
 
         return $partner->refresh();
+    }
+
+    /**
+     * Remove a partner nothing has been received from — the undo for a
+     * mistaken add. Once copies exist the partner row is their
+     * provenance anchor (ID-3) and the partnership ends by blocking, not
+     * deletion (federation-protocol.md §Trust levels has no "removed"
+     * state). The approve/block history survives in the activity log,
+     * keyed by domain.
+     */
+    public function remove(FederationPartner $partner, User $removedBy): void
+    {
+        if (! $partner->isRemovable()) {
+            throw new InvalidArgumentException(__('federation.partner_not_removable', ['domain' => $partner->domain]));
+        }
+
+        $domain = $partner->domain;
+
+        activity('federation')
+            ->causedBy($removedBy)
+            ->performedOn($partner)
+            ->withProperties(['domain' => $domain, 'trust_level' => $partner->trust_level->value])
+            ->event('partner_removed')
+            ->log("Partner {$domain} removed");
+
+        // Audience and group rows cascade; the visibility log carries no
+        // foreign key (append-only by design) so its rows go explicitly.
+        VisibilityEvent::query()->where('federation_partner_id', $partner->id)->delete();
+
+        $partner->delete();
     }
 }

@@ -101,6 +101,24 @@ test('an unknown domain with an unreachable well-known document is rejected', fu
         ->assertJsonPath('error.code', 'PARTNER_UNKNOWN');
 })->group('FP-13');
 
+test('a request claiming to come from this node itself is rejected without creating a partner', function () {
+    Http::fake();
+
+    $this->get(RECEIVER_BASE.'/openyacht/v1/listings', federationSignedHeaders(
+        RECEIVER_HOST,
+        $this->keypair['key_id'],
+        $this->keypair['secret_key'],
+        'GET',
+        '/openyacht/v1/listings',
+        RECEIVER_HOST,
+    ))
+        ->assertStatus(401)
+        ->assertJsonPath('error.code', 'SIGNATURE_INVALID');
+
+    expect(FederationPartner::query()->where('domain', RECEIVER_HOST)->exists())->toBeFalse();
+    Http::assertNothingSent();
+});
+
 test('a rotated key is picked up by the failure-triggered refetch', function () {
     $staleKeypair = federationTestKeypair();
 

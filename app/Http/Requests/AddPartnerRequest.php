@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\Permission;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class AddPartnerRequest extends FormRequest
 {
@@ -30,6 +31,9 @@ class AddPartnerRequest extends FormRequest
                 'max:255',
                 // A bare hostname: no scheme, no path, no port.
                 'regex:/^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/i',
+                // A node cannot federate with itself: it would sync its
+                // own listings back as partner copies.
+                Rule::notIn([strtolower((string) config('openyacht.domain'))]),
                 'unique:federation_partners,domain',
             ],
         ];
@@ -42,6 +46,7 @@ class AddPartnerRequest extends FormRequest
     {
         return [
             'domain.regex' => __('federation.domain_invalid'),
+            'domain.not_in' => __('federation.domain_is_self'),
             'domain.unique' => __('federation.domain_exists'),
         ];
     }

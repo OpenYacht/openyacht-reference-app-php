@@ -204,6 +204,17 @@ class FederationPartner extends Model
     }
 
     /**
+     * A partner can be removed outright only while nothing has been
+     * received from it; after that its row anchors every copy's
+     * provenance (ID-3) and blocking is the only way to end the
+     * partnership.
+     */
+    public function isRemovable(): bool
+    {
+        return $this->listingCopies()->doesntExist();
+    }
+
+    /**
      * A partner unreachable beyond the staleness threshold marks all its
      * copies stale in any consuming UI (FP-15).
      *

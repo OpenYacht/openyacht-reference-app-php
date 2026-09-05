@@ -45,6 +45,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('federation/partners/{partner}', [PartnerController::class, 'show'])->name('partners.show');
     Route::post('federation/partners/{partner}/approve', [PartnerController::class, 'approve'])->name('partners.approve');
     Route::post('federation/partners/{partner}/block', [PartnerController::class, 'block'])->name('partners.block');
+    Route::delete('federation/partners/{partner}', [PartnerController::class, 'destroy'])->name('partners.destroy');
     Route::post('federation/partners/{partner}/refresh-keys', [PartnerController::class, 'refreshKeys'])->name('partners.refresh-keys');
     Route::post('federation/partners/{partner}/sync', [PartnerController::class, 'sync'])->name('partners.sync');
     Route::put('federation/partners/{partner}/field-groups', [PartnerController::class, 'updateFieldGroups'])->name('partners.field-groups.update');

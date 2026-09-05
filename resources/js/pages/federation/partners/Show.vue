@@ -8,6 +8,7 @@ import { formatListingPrice } from '@/lib/listingPrice';
 import {
     approve,
     block,
+    destroy,
     index,
     refreshKeys,
     show,
@@ -40,6 +41,7 @@ type Partner = {
     last_synced_at: string | null;
     consecutive_failures: number;
     listing_copies_count: number;
+    is_removable: boolean;
     is_stale: boolean;
     is_hidden: boolean;
     field_groups: string[] | null;
@@ -268,6 +270,31 @@ const act = (url: { url: string; method: string }) => {
     );
 };
 
+/*
+ * Removal is the undo for a mistaken add and exists only while nothing
+ * has been received from the partner; after that the copies' provenance
+ * hangs off this row and the partnership ends by blocking instead.
+ */
+const showRemoveModal = ref(false);
+const removing = ref(false);
+
+const remove = () => {
+    removing.value = true;
+
+    router.delete(destroy.url({ partner: props.partner.id }), {
+        onError: (errors) => {
+            toast.add({
+                title: Object.values(errors)[0] ?? 'Action failed.',
+                color: 'error',
+            });
+        },
+        onFinish: () => {
+            removing.value = false;
+            showRemoveModal.value = false;
+        },
+    });
+};
+
 const trustColor = (level: string) =>
     ({ verified: 'success', provisional: 'warning', blocked: 'error' })[
         level
@@ -349,8 +376,39 @@ const trustColor = (level: string) =>
                     label="Sync now"
                     @click="act(sync(partner.id))"
                 />
+                <UButton
+                    v-if="partner.is_removable"
+                    color="neutral"
+                    variant="ghost"
+                    icon="i-lucide-trash-2"
+                    label="Remove"
+                    @click="showRemoveModal = true"
+                />
             </div>
         </div>
+
+        <UModal
+            v-model:open="showRemoveModal"
+            title="Remove this partner?"
+            :description="`${partner.domain} will be removed. Nothing has been received from it yet, so there are no copies to keep; the add, approve, and block history stays in the activity log. Once listings arrive, a partnership is ended by blocking instead.`"
+        >
+            <template #body>
+                <div class="flex justify-end gap-2">
+                    <UButton
+                        color="neutral"
+                        variant="soft"
+                        label="Cancel"
+                        @click="showRemoveModal = false"
+                    />
+                    <UButton
+                        color="error"
+                        :loading="removing"
+                        label="Remove partner"
+                        @click="remove"
+                    />
+                </div>
+            </template>
+        </UModal>
 
         <div class="grid gap-4 sm:grid-cols-2">
             <UCard>

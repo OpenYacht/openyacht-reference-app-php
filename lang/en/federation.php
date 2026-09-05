@@ -10,6 +10,9 @@ return [
 
     'domain_invalid' => 'Enter a bare hostname such as openyacht.example.com — no scheme or path.',
     'domain_exists' => 'This partner already exists.',
+    'domain_is_self' => 'That is this node\'s own identity domain — a node cannot federate with itself.',
+    'partner_not_removable' => 'Listings have been received from :domain, so it cannot be removed — block it instead.',
+    'partner_removed' => ':domain removed.',
     'partner_added' => ':domain added as a provisional partner.',
     'partner_approved' => ':domain approved.',
     'partner_blocked' => ':domain blocked.',

@@ -28,6 +28,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
 use Throwable;
 
 class PartnerController extends Controller
@@ -98,6 +99,7 @@ class PartnerController extends Controller
                 'last_synced_at' => $partner->last_synced_at?->diffForHumans(),
                 'consecutive_failures' => $partner->consecutive_failures,
                 'listing_copies_count' => $partner->listingCopies()->count(),
+                'is_removable' => $partner->isRemovable(),
                 'is_stale' => $partner->isStale(),
                 'is_hidden' => $partner->isHidden(),
                 // null means every group granted (the pre-grants default).
@@ -429,6 +431,28 @@ class PartnerController extends Controller
         ]);
 
         return back();
+    }
+
+    /**
+     * The undo for a mistaken add: only a partner nothing has been received
+     * from can be removed; otherwise the answer is block.
+     */
+    public function destroy(Request $request, FederationPartner $partner, PartnerService $partners): RedirectResponse
+    {
+        Gate::authorize(Permission::ManageFederation->value);
+
+        try {
+            $partners->remove($partner, $request->user());
+        } catch (InvalidArgumentException $exception) {
+            throw ValidationException::withMessages(['partner' => $exception->getMessage()]);
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('federation.partner_removed', ['domain' => $partner->domain]),
+        ]);
+
+        return to_route('partners.index');
     }
 
     public function refreshKeys(Request $request, FederationPartner $partner, PartnerService $partners): RedirectResponse

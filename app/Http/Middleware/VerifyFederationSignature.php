@@ -46,6 +46,12 @@ class VerifyFederationSignature
             return $this->reject($request, $senderDomain, FederationErrorCode::SignatureInvalid, 'Missing X-OpenYacht signature headers.');
         }
 
+        // A request claiming to come from this node itself is never a
+        // partner's: there is no self-partnership to trust it against.
+        if ($senderDomain === strtolower((string) config('openyacht.domain'))) {
+            return $this->reject($request, $senderDomain, FederationErrorCode::SignatureInvalid, 'A node cannot federate with itself.');
+        }
+
         // First contact from an unknown domain is trusted-on-first-use as
         // provisional (FP-13); an unreachable well-known document means we
         // cannot authenticate the sender at all.
