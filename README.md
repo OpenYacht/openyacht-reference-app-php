@@ -7,20 +7,23 @@ This app is reference material first, installable product second. It exists so a
 ## What it implements
 
 **Authority role**
+
 - Own listings with the full wire schema (specifications, descriptions in the restricted HTML subset, features, compliance), validated at data entry against the vendored registries — builder slugs, category slugs — exactly as the spec requires
-- **Both listing types, structurally separated**: sale and charter listings live in separate tables (the table *is* the type, which is how the type stays immutable like the canonical UUID), authored on separate screens, and served through one unioned feed. Charter listings carry the schema's type conditional — `listing.price: null`, a shape-complete `charter` block (rates by season, operating areas validated against the vendored destination registry, base ports, crew) — with rates under the `pricing` field group and crew distributed only while a charter-manager/captain attestation is on record (LS-15)
+- **Both listing types, structurally separated**: sale and charter listings live in separate tables (the table _is_ the type, which is how the type stays immutable like the canonical UUID), authored on separate screens, and served through one unioned feed. Charter listings carry the schema's type conditional — `listing.price: null`, a shape-complete `charter` block (rates by season, operating areas validated against the vendored destination registry, base ports, crew) — with rates under the `pricing` field group and crew distributed only while a charter-manager/captain attestation is on record (LS-15)
 - Ed25519 request signing and verification (passes the spec's signing test vectors byte-for-byte), key rotation (`openyacht:key:rotate` — routine, emergency, and post-overlap retirement)
 - `/.well-known/openyacht`, capabilities, health, and the listings endpoints with keyset cursors, `updated_since` incremental sync, tombstones, and per-partner field-group gating
 - Listing lifecycle (`draft → active ⇄ under_offer → sold | withdrawn`) with canonical URIs minted once and terminal listings dereferenceable through the retention window
 - **Per-listing, per-partner sharing**: each listing's audience is everyone, selected partners/groups, or no one; per-partner field-group grants re-gate payloads server-side. Every visibility change lands in an append-only event log the feed replays against any `updated_since` watermark — unsharing surfaces as a tombstone indistinguishable from a real withdrawal, re-sharing as a normal update, and a grants change resends re-gated payloads on the partner's next poll. Partner groups are the audience shorthand; membership changes replay through the same log without touching any listing
 
 **Consumer role**
+
 - Trust-on-first-use partner establishment, signed sync (`openyacht:sync`, scheduled hourly), verbatim copies stored with provenance and never re-served
 - Curated imports: chosen copies become displayable yachts with locally generated WebP renditions (srcset widths plus a cropped hero) from the single wire image
 - Tolerant of schema drift: unknown fields ignored, unreadable values degrade to null — never an exception (see `SchemaToleranceTest`)
 - Node-directory discovery (FP-16): a directory admin page with the vendored advisory phonebook (canonical-URL-only refresh, searchable, add-as-partner through the exact same TOFU path as a hand-typed domain) and this node's own listing consent — findability status plus the signed list/delist/amend requests (also via `openyacht:listing-token`)
 
 **Application shell**
+
 - Roles and permissions (permission-based authorization throughout — roles are UI), an activity log of admin and federation events — the audit trail (partnerships, shares, imports, withdrawals) kept as evidence while only the high-volume sync summaries are pruned on a retention window — translation-ready strings
 - Unified read API (`/api/v1/yachts`) carrying own + imported inventory in the wire-schema shape, with hashed API keys, scopes, and per-key rate limiting — so the node can feed a public website
 - Listing pages with shared card grid and faceted filtering (search, location, category, size)
@@ -49,18 +52,18 @@ php artisan openyacht:create-user   # create the first user — there is no self
 
 Then set the node's identity in `.env`:
 
-| Variable | Purpose |
-|---|---|
-| `OPENYACHT_DOMAIN` | The node's identity domain — permanent in practice, choose deliberately |
-| `OPENYACHT_NODE_NAME` | Display name published in the well-known document |
-| `OPENYACHT_WEBSITE` | Public website URL |
-| `OPENYACHT_ATTRIBUTION_TEXT` | Attribution partners must display |
-| `OPENYACHT_MEDIA_DISK` | Disk for imported-media renditions (`public` locally; S3/R2 via standard Laravel disks) |
+| Variable                                            | Purpose                                                                                           |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `OPENYACHT_DOMAIN`                                  | The node's identity domain — permanent in practice, choose deliberately                           |
+| `OPENYACHT_NODE_NAME`                               | Display name published in the well-known document                                                 |
+| `OPENYACHT_WEBSITE`                                 | Public website URL                                                                                |
+| `OPENYACHT_ATTRIBUTION_TEXT`                        | Attribution partners must display                                                                 |
+| `OPENYACHT_MEDIA_DISK`                              | Disk for imported-media renditions (`public` locally; S3/R2 via standard Laravel disks)           |
 | `OPENYACHT_MAP_PROVIDER` / `OPENYACHT_MAPBOX_TOKEN` | Coordinate-picker map: OpenStreetMap needs no key; Mapbox upgrades tiles, 3D globe, and geocoding |
 
 Production needs the scheduler (hourly sync) and a queue worker (media imports).
 
-Email (password resets, federation alerts) defaults to the `log` mailer. For real delivery set `MAIL_MAILER=brevo` with a `BREVO_API_KEY` (Brevo's HTTP API — no SMTP credentials needed) and a real `MAIL_FROM_ADDRESS`; any other Laravel mail transport works the same way. If the Brevo account has authorised-IP security enabled, add the server's address (IPv6 included — that is usually the one outbound requests use) or every send fails with a 401 naming the unrecognised IP. Federation events needing a human — an unknown node introducing itself (FP-13) and a partner's node UUID changing (FP-11) — are emailed to users holding the *Receive federation notifications* permission (super admins by default; tune it in the roles matrix). After upgrades that add permissions, re-run `php artisan db:seed --class=RoleSeeder` — it is idempotent and keeps super_admin holding every permission without touching a tuned matrix.
+Email (password resets, federation alerts) defaults to the `log` mailer. For real delivery set `MAIL_MAILER=brevo` with a `BREVO_API_KEY` (Brevo's HTTP API — no SMTP credentials needed) and a real `MAIL_FROM_ADDRESS`; any other Laravel mail transport works the same way. If the Brevo account has authorised-IP security enabled, add the server's address (IPv6 included — that is usually the one outbound requests use) or every send fails with a 401 naming the unrecognised IP. Federation events needing a human — an unknown node introducing itself (FP-13) and a partner's node UUID changing (FP-11) — are emailed to users holding the _Receive federation notifications_ permission (super admins by default; tune it in the roles matrix). After upgrades that add permissions, re-run `php artisan db:seed --class=RoleSeeder` — it is idempotent and keeps super_admin holding every permission without touching a tuned matrix.
 
 ## Deployment
 
@@ -176,11 +179,11 @@ Run `supervisorctl update` only after the first deploy has created `current/`, o
 
 The `--queue=notifications,default` order matters: outbound change-notification webhooks are dispatched on the `notifications` queue so a consumer's deploy hook fires as the very next job, instead of waiting behind a backlog of minute-long media imports on `default`. A worker started without the flag still drains `default` only and never sends a webhook.
 
-The worker's default 60-second job timeout is far too short for a media import — one job downloads a yacht's whole gallery and renders several sizes of every image — so `ImportYachtMedia` declares its own (900 seconds); no `--timeout` flag is needed. What *is* needed is the queue's `retry_after` (the `REDIS_QUEUE_RETRY_AFTER` line above, or `DB_QUEUE_RETRY_AFTER` on the database driver) set above that timeout, or a still-running import is handed to a second worker as a duplicate. The hourly `openyacht:sync-media` sweep re-queues any import that died anyway.
+The worker's default 60-second job timeout is far too short for a media import — one job downloads a yacht's whole gallery and renders several sizes of every image — so `ImportYachtMedia` declares its own (900 seconds); no `--timeout` flag is needed. What _is_ needed is the queue's `retry_after` (the `REDIS_QUEUE_RETRY_AFTER` line above, or `DB_QUEUE_RETRY_AFTER` on the database driver) set above that timeout, or a still-running import is handed to a second worker as a duplicate. The hourly `openyacht:sync-media` sweep re-queues any import that died anyway.
 
 **Before every deploy** — the same three gates, every time; deploys pull from the repository, so anything unpushed or unchecked simply is not what ships:
 
-1. `composer preflight` — the fixers (Pint, ESLint, Prettier) followed by the exact checks CI runs (format, frontend types, PHPStan, the full test suite). Running individual tools on the files you touched is not enough: format and static-analysis drift accumulates precisely on the files you *didn't* touch, and CI checks everything.
+1. `composer preflight` — the fixers (Pint, ESLint, Prettier) followed by the exact checks CI runs (format, frontend types, PHPStan, the full test suite). Running individual tools on the files you touched is not enough: format and static-analysis drift accumulates precisely on the files you _didn't_ touch, and CI checks everything.
 2. Push, and wait for **both** CI jobs — `ci` and `tests-mysql` — to go green. The MySQL job is the cross-database gate; SQLite passing locally proves nothing about engine divergence.
 3. Deploy the commit CI approved, not a newer local one.
 
@@ -195,13 +198,13 @@ php artisan optimize:clear && php artisan optimize  # REQUIRED, see below
 php artisan openyacht:create-user                  # interactive; needs a TTY
 ```
 
-The cache rebuild is not optional, and its position is the point: the deploy's own `artisan:optimize` caches config *before* `openyacht:install` writes `OPENYACHT_NODE_UUID` into `.env`, so skipping it leaves the node serving a discovery document with `"uuid": null` — a partner reading that sees a node with no identity, and nothing else appears wrong. `openyacht:create-user` prompts through Laravel Prompts and cannot be piped or scripted; run it on an interactive shell. There is no web UI for creating users — self-registration is disabled by design, so every account is minted with this command.
+The cache rebuild is not optional, and its position is the point: the deploy's own `artisan:optimize` caches config _before_ `openyacht:install` writes `OPENYACHT_NODE_UUID` into `.env`, so skipping it leaves the node serving a discovery document with `"uuid": null` — a partner reading that sees a node with no identity, and nothing else appears wrong. `openyacht:create-user` prompts through Laravel Prompts and cannot be piped or scripted; run it on an interactive shell. There is no web UI for creating users — self-registration is disabled by design, so every account is minted with this command.
 
 Every later deploy is the single `dep deploy` command: it builds assets on the server, migrates, restarts the queue worker, and swaps the `current` symlink atomically.
 
 ## Tests are the conformance story
 
-The Pest suite is grouped by the spec's conformance IDs — the test run *is* the self-certification:
+The Pest suite is grouped by the spec's conformance IDs — the test run _is_ the self-certification:
 
 ```bash
 php artisan test                                   # SQLite
