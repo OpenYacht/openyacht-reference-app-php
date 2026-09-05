@@ -275,9 +275,50 @@ test('sale and charter imports are never mixed in one list', function () {
     $names = fn (string $routeName): array => collect(
         $this->actingAs($editor)
             ->get(route($routeName))
-            ->original->getData()['page']['props']['yachts'],
+            ->original->getData()['page']['props']['yachts']['data'],
     )->pluck('name')->all();
 
     expect($names('imported-yachts.index'))->toBe(['SALE IMPORT'])
         ->and($names('imported-charter-yachts.index'))->toBe(['CHARTER IMPORT']);
+});
+
+test('the imported list pages by 24 and filters by the partner behind the copy', function () {
+    $this->seed(RoleSeeder::class);
+
+    $alpha = FederationPartner::factory()->verified()->create(['node_name' => 'Alpha Yachts']);
+    $beta = FederationPartner::factory()->verified()->create(['node_name' => 'Beta Yachts']);
+    FederationPartner::factory()->verified()->create(['node_name' => 'Synced Only']);
+
+    foreach (range(1, 24) as $index) {
+        ImportedYacht::factory()
+            ->for(ListingCopy::factory()->for($alpha, 'partner'), 'copy')
+            ->create(['name' => sprintf('ALPHA %02d', $index)]);
+    }
+
+    ImportedYacht::factory()
+        ->for(ListingCopy::factory()->for($beta, 'partner'), 'copy')
+        ->create(['name' => 'BETA ONE']);
+
+    $editor = tap(User::factory()->create(), fn (User $user) => $user->assignRole(Role::Editor));
+
+    $props = fn (array $params = []): array => $this->actingAs($editor)
+        ->get(route('imported-yachts.index', $params))
+        ->assertOk()
+        ->original->getData()['page']['props'];
+
+    $first = $props();
+
+    // Ordered by name, so the 24 alphas fill page one and BETA ONE is
+    // alone on page two.
+    expect($first['yachts']['total'])->toBe(25)
+        ->and(collect($first['yachts']['data'])->pluck('name')->last())->toBe('ALPHA 24')
+        ->and(collect($props(['page' => 2])['yachts']['data'])->pluck('name')->all())->toBe(['BETA ONE'])
+        // Only partners with an import of this type are offered.
+        ->and(collect($first['partners'])->pluck('label')->all())->toBe(['Alpha Yachts', 'Beta Yachts']);
+
+    $filtered = $props(['partner' => $beta->id]);
+
+    expect(collect($filtered['yachts']['data'])->pluck('name')->all())->toBe(['BETA ONE'])
+        ->and($filtered['yachts']['total'])->toBe(1)
+        ->and($filtered['filters']['partner'])->toBe((string) $beta->id);
 });

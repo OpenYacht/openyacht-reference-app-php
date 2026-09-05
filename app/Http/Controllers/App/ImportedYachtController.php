@@ -6,6 +6,7 @@ use App\Enums\Permission;
 use App\Http\Controllers\Concerns\FiltersListings;
 use App\Http\Controllers\Concerns\PresentsRemoteMedia;
 use App\Http\Controllers\Controller;
+use App\Models\FederationPartner;
 use App\Models\ImportedMedia;
 use App\Models\ImportedYacht;
 use App\Models\ListingCopy;
@@ -13,6 +14,7 @@ use App\Services\ChangeNotifier;
 use App\Services\Federation\CategoryVocabulary;
 use App\Services\Federation\ImportService;
 use App\Services\Federation\RichTextSanitizer;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -28,6 +30,12 @@ use InvalidArgumentException;
 class ImportedYachtController extends Controller
 {
     use FiltersListings, PresentsRemoteMedia;
+
+    /**
+     * Card-grid page size: a multiple of the two- and three-column grid
+     * widths so a full page never ends on a ragged row.
+     */
+    private const int PER_PAGE = 24;
 
     public function index(Request $request, CategoryVocabulary $categories): Response
     {
@@ -49,9 +57,18 @@ class ImportedYachtController extends Controller
             'listingType' => $type,
             'filters' => $filters,
             'categories' => $categories->all(),
+            'partners' => $this->partnerOptions(
+                FederationPartner::query()
+                    ->whereHas('listingCopies.import', fn (Builder $imports) => $imports->where('type', $type)),
+            ),
             'yachts' => ImportedYacht::query()
                 ->with(['media', 'copy.partner:id,domain,last_ok_at,created_at'])
                 ->where('type', $type)
+                // The partner hangs off the copy; the curated row carries
+                // only the copy id.
+                ->when($filters['partner'] !== '', fn ($query) => $query
+                    ->whereHas('copy', fn ($copy) => $copy
+                        ->where('federation_partner_id', (int) $filters['partner'])))
                 ->when($filters['q'] !== '', fn ($query) => $query->where(
                     fn ($query) => $query
                         ->where('name', 'like', "%{$filters['q']}%")
@@ -68,8 +85,9 @@ class ImportedYachtController extends Controller
                 ->when($filters['loa_min'] !== null, fn ($query) => $query->where('loa_m', '>=', $filters['loa_min']))
                 ->when($filters['loa_max'] !== null, fn ($query) => $query->where('loa_m', '<=', $filters['loa_max']))
                 ->orderBy('name')
-                ->get()
-                ->map(function (ImportedYacht $yacht): array {
+                ->paginate(self::PER_PAGE)
+                ->withQueryString()
+                ->through(function (ImportedYacht $yacht): array {
                     $profile = $yacht->profileMedia();
 
                     return [

@@ -277,7 +277,7 @@ test('the synced listing filters read the copy payload, floats included', functi
     $names = fn (array $params): array => collect(
         $this->actingAs($admin)
             ->get(route('synced-listings.index', $params))
-            ->original->getData()['page']['props']['copies'],
+            ->original->getData()['page']['props']['copies']['data'],
     )->pluck('name')->all();
 
     // A fractional bound regression-tests the PDO float-as-string binding
@@ -302,11 +302,86 @@ test('sale and charter copies are never mixed in one synced list', function () {
     $names = fn (string $routeName): array => collect(
         $this->actingAs($admin)
             ->get(route($routeName))
-            ->original->getData()['page']['props']['copies'],
+            ->original->getData()['page']['props']['copies']['data'],
     )->pluck('name')->all();
 
     expect($names('synced-listings.index'))->toBe(['SALE COPY'])
         ->and($names('synced-charter-listings.index'))->toBe(['CHARTER COPY']);
+});
+
+test('the synced list pages by 24 and carries the filters across pages', function () {
+    $this->seed(RoleSeeder::class);
+
+    $partner = FederationPartner::factory()->verified()->create(['node_name' => 'Paged Partner']);
+
+    // 25 copies, updated a minute apart so the ordering is deterministic:
+    // the newest 24 fill page one and the oldest lands alone on page two.
+    foreach (range(1, 25) as $index) {
+        ListingCopy::factory()->for($partner, 'partner')->create([
+            'name' => sprintf('COPY %02d', $index),
+            'listing_updated_at' => now()->subMinutes(26 - $index),
+        ]);
+    }
+
+    $admin = tap(User::factory()->create(), fn (User $user) => $user->assignRole(Role::Admin));
+
+    $page = fn (array $params): array => $this->actingAs($admin)
+        ->get(route('synced-listings.index', $params))
+        ->assertOk()
+        ->original->getData()['page']['props']['copies'];
+
+    $first = $page(['partner' => $partner->id]);
+    $second = $page(['partner' => $partner->id, 'page' => 2]);
+
+    expect(collect($first['data'])->pluck('name')->all())->toHaveCount(24)
+        ->and(collect($first['data'])->pluck('name')->first())->toBe('COPY 25')
+        ->and($first['total'])->toBe(25)
+        ->and($first['next_page_url'])->toContain('page=2')
+        // withQueryString: the active filter survives the page link.
+        ->and($first['next_page_url'])->toContain("partner={$partner->id}")
+        ->and(collect($second['data'])->pluck('name')->all())->toBe(['COPY 01'])
+        ->and($second['next_page_url'])->toBeNull();
+});
+
+test('the synced list filters by partner and offers only partners with copies of that type', function () {
+    $this->seed(RoleSeeder::class);
+
+    $alpha = FederationPartner::factory()->verified()->create(['node_name' => 'Alpha Yachts']);
+    $beta = FederationPartner::factory()->verified()->create(['node_name' => null, 'domain' => 'openyacht.beta.example']);
+    $charterOnly = FederationPartner::factory()->verified()->create(['node_name' => 'Charter House']);
+    FederationPartner::factory()->verified()->create(['node_name' => 'Nothing Shared']);
+
+    ListingCopy::factory()->for($alpha, 'partner')->create(['name' => 'ALPHA ONE']);
+    ListingCopy::factory()->for($alpha, 'partner')->create(['name' => 'ALPHA TWO']);
+    ListingCopy::factory()->for($beta, 'partner')->create(['name' => 'BETA ONE']);
+    ListingCopy::factory()->for($charterOnly, 'partner')->create(['name' => 'CHARTER ONE', 'type' => 'charter']);
+
+    $admin = tap(User::factory()->create(), fn (User $user) => $user->assignRole(Role::Admin));
+
+    $props = fn (array $params = []): array => $this->actingAs($admin)
+        ->get(route('synced-listings.index', $params))
+        ->assertOk()
+        ->original->getData()['page']['props'];
+
+    $unfiltered = $props();
+
+    expect(collect($unfiltered['copies']['data'])->pluck('name')->all())
+        ->toEqualCanonicalizing(['ALPHA ONE', 'ALPHA TWO', 'BETA ONE'])
+        // Labelled by node name, falling back to the domain; sale-only
+        // partners are listed, the charter-only and idle ones are not.
+        ->and(collect($unfiltered['partners'])->pluck('label', 'id')->all())
+        ->toBe([$alpha->id => 'Alpha Yachts', $beta->id => 'openyacht.beta.example'])
+        ->and($unfiltered['filters']['partner'])->toBe('');
+
+    $filtered = $props(['partner' => $alpha->id]);
+
+    expect(collect($filtered['copies']['data'])->pluck('name')->all())
+        ->toEqualCanonicalizing(['ALPHA ONE', 'ALPHA TWO'])
+        ->and($filtered['filters']['partner'])->toBe((string) $alpha->id);
+
+    // A non-numeric partner is ignored rather than erroring.
+    expect(collect($props(['partner' => 'nope'])['copies']['data'])->pluck('name')->all())
+        ->toEqualCanonicalizing(['ALPHA ONE', 'ALPHA TWO', 'BETA ONE']);
 });
 
 test('sync records federation activity for status changes, tombstones, and removals', function () {

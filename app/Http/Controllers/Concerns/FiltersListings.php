@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Concerns;
 
 use App\Enums\ListingStatus;
 use App\Models\CharterYacht;
+use App\Models\FederationPartner;
 use App\Models\SaleYacht;
 use App\Models\Vessel;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
@@ -20,7 +21,7 @@ use InvalidArgumentException;
 trait FiltersListings
 {
     /**
-     * @return array{q: string, location: string, category: string, loa_min: float|null, loa_max: float|null, builder: string, year_min: int|null, year_max: int|null, power_sail: string, status: string}
+     * @return array{q: string, location: string, category: string, loa_min: float|null, loa_max: float|null, builder: string, year_min: int|null, year_max: int|null, power_sail: string, status: string, partner: string}
      */
     private function listingFilters(Request $request): array
     {
@@ -37,6 +38,9 @@ trait FiltersListings
         };
 
         $powerSail = trim((string) $request->query('power_sail'));
+        // A partner id, kept as a string so the select's 'all' sentinel
+        // and the query string round-trip without a numeric cast.
+        $partner = trim((string) $request->query('partner'));
 
         return [
             'q' => trim((string) $request->query('q')),
@@ -49,6 +53,7 @@ trait FiltersListings
             'year_max' => $year('year_max'),
             'power_sail' => in_array($powerSail, ['power', 'sail'], true) ? $powerSail : '',
             'status' => ListingStatus::tryFrom(trim((string) $request->query('status')))->value ?? '',
+            'partner' => ctype_digit($partner) ? $partner : '',
         ];
     }
 
@@ -61,7 +66,7 @@ trait FiltersListings
      * @template TListing of SaleYacht|CharterYacht
      *
      * @param  EloquentBuilder<TListing>  $query
-     * @param  array{q: string, location: string, category: string, loa_min: float|null, loa_max: float|null, builder: string, year_min: int|null, year_max: int|null, power_sail: string, status: string}  $filters
+     * @param  array{q: string, location: string, category: string, loa_min: float|null, loa_max: float|null, builder: string, year_min: int|null, year_max: int|null, power_sail: string, status: string, partner: string}  $filters
      * @return EloquentBuilder<TListing>
      */
     private function applyOwnListingFilters(EloquentBuilder $query, array $filters): EloquentBuilder
@@ -116,6 +121,28 @@ trait FiltersListings
             ->distinct()
             ->orderBy('builder_name')
             ->pluck('builder_name');
+    }
+
+    /**
+     * The partners behind a partner-listing index, for the filter bar's
+     * partner select. The caller scopes the query to the partners that
+     * actually have rows in that index, so the select never offers an
+     * option that filters to nothing.
+     *
+     * @param  EloquentBuilder<FederationPartner>  $partners
+     * @return Collection<int, array{id: int, label: string}>
+     */
+    private function partnerOptions(EloquentBuilder $partners): Collection
+    {
+        return $partners
+            // Sorted by the label shown, so a partner without a node name
+            // files under its domain rather than NULL-first at the top.
+            ->orderByRaw('coalesce(node_name, domain)')
+            ->get(['id', 'domain', 'node_name'])
+            ->map(fn (FederationPartner $partner): array => [
+                'id' => $partner->id,
+                'label' => $partner->node_name ?? $partner->domain,
+            ]);
     }
 
     /**

@@ -3,7 +3,10 @@ import { Head, router, setLayoutProps, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import ListingCard from '@/components/ListingCard.vue';
 import type { ListingBadge } from '@/components/ListingCard.vue';
-import type { ListingFilters } from '@/components/ListingFilterBar.vue';
+import type {
+    ListingFilters,
+    PartnerOption,
+} from '@/components/ListingFilterBar.vue';
 import ListingIndexShell from '@/components/ListingIndexShell.vue';
 import PartnerListingsTabs from '@/components/PartnerListingsTabs.vue';
 import type { CharterRate } from '@/lib/listingPrice';
@@ -12,6 +15,7 @@ import { partnerListingsLabel } from '@/lib/partnerListings';
 import { store as importCopy } from '@/routes/imported-yachts';
 import { index as charterIndex } from '@/routes/synced-charter-listings';
 import { index, show } from '@/routes/synced-listings';
+import type { Paginated } from '@/types/pagination';
 
 type Copy = {
     id: number;
@@ -40,7 +44,8 @@ const props = defineProps<{
     listingType: 'sale' | 'charter';
     filters: ListingFilters;
     categories: { slug: string; name: string }[];
-    copies: Copy[];
+    partners: PartnerOption[];
+    copies: Paginated<Copy>;
 }>();
 
 const title = computed(() => partnerListingsLabel(props.listingType));
@@ -112,14 +117,16 @@ const badges = (copy: Copy): ListingBadge[] => [
         search-placeholder="Search name or partner domain…"
         :filters="filters"
         :categories="categories"
-        :has-results="copies.length > 0"
+        :partners="partners"
+        :has-results="copies.data.length > 0"
+        :paginator="copies"
         empty="Nothing synced found. Once a partner is approved and synced, their shared listings appear here."
     >
         <template #tabs>
             <PartnerListingsTabs :listing-type="listingType" stage="synced" />
         </template>
         <ListingCard
-            v-for="copy in copies"
+            v-for="copy in copies.data"
             :key="copy.id"
             :title="copy.name ?? 'Unnamed'"
             :href="show(copy.id)"

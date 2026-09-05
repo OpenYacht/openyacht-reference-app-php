@@ -9,7 +9,10 @@ import {
 import { computed, watch } from 'vue';
 import ListingCard from '@/components/ListingCard.vue';
 import type { ListingBadge } from '@/components/ListingCard.vue';
-import type { ListingFilters } from '@/components/ListingFilterBar.vue';
+import type {
+    ListingFilters,
+    PartnerOption,
+} from '@/components/ListingFilterBar.vue';
 import ListingIndexShell from '@/components/ListingIndexShell.vue';
 import PartnerListingsTabs from '@/components/PartnerListingsTabs.vue';
 import type { CharterRate } from '@/lib/listingPrice';
@@ -17,6 +20,7 @@ import { formatListingPrice } from '@/lib/listingPrice';
 import { partnerListingsLabel } from '@/lib/partnerListings';
 import { index as charterIndex } from '@/routes/imported-charter-yachts';
 import { destroy, index, show } from '@/routes/imported-yachts';
+import type { Paginated } from '@/types/pagination';
 
 type ImportedYacht = {
     id: number;
@@ -46,7 +50,8 @@ const props = defineProps<{
     listingType: 'sale' | 'charter';
     filters: ListingFilters;
     categories: { slug: string; name: string }[];
-    yachts: ImportedYacht[];
+    partners: PartnerOption[];
+    yachts: Paginated<ImportedYacht>;
 }>();
 
 const title = computed(() => partnerListingsLabel(props.listingType));
@@ -73,7 +78,7 @@ const page = usePage();
  * stops itself once everything has media.
  */
 const hasPendingMedia = computed(() =>
-    props.yachts.some((yacht) => !yacht.media_synced_at),
+    props.yachts.data.some((yacht) => !yacht.media_synced_at),
 );
 
 const { start, stop } = usePoll(
@@ -148,14 +153,16 @@ const removeImport = (yacht: ImportedYacht) => {
         search-placeholder="Search name, builder, or model…"
         :filters="filters"
         :categories="categories"
-        :has-results="yachts.length > 0"
+        :partners="partners"
+        :has-results="yachts.data.length > 0"
+        :paginator="yachts"
         empty="Nothing imported found. Pick listings to display from the Synced tab."
     >
         <template #tabs>
             <PartnerListingsTabs :listing-type="listingType" stage="imported" />
         </template>
         <ListingCard
-            v-for="yacht in yachts"
+            v-for="yacht in yachts.data"
             :key="yacht.id"
             :title="yacht.name"
             :href="show(yacht.id)"

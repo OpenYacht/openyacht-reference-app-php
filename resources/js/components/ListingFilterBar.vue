@@ -10,7 +10,10 @@ export type ListingFilters = {
     year_max: number | null;
     power_sail: string;
     status: string;
+    partner: string;
 };
+
+export type PartnerOption = { id: number; label: string };
 </script>
 
 <script setup lang="ts">
@@ -33,6 +36,7 @@ const props = defineProps<{
     // provided, so indexes that don't apply a filter never show it.
     builders?: string[];
     statuses?: { value: string; label: string }[];
+    partners?: PartnerOption[];
     showYearRange?: boolean;
     showPowerSail?: boolean;
     // Extra params carried through every visit unchanged — e.g. the
@@ -52,6 +56,7 @@ const state = reactive({
     year_max: props.initial.year_max,
     power_sail: props.initial.power_sail || 'all',
     status: props.initial.status || 'all',
+    partner: props.initial.partner || 'all',
 });
 
 const categoryItems = [
@@ -75,6 +80,14 @@ const statusItems = [
     ...(props.statuses ?? []).map((status) => ({
         label: status.label,
         value: status.value,
+    })),
+];
+
+const partnerItems = [
+    { label: 'All partners', value: 'all' },
+    ...(props.partners ?? []).map((partner) => ({
+        label: partner.label,
+        value: String(partner.id),
     })),
 ];
 
@@ -134,6 +147,11 @@ watch(state, () => {
             params.status = state.status;
         }
 
+        if (state.partner !== 'all') {
+            params.partner = state.partner;
+        }
+
+        // No page param: a changed filter always restarts at page one.
         router.get(window.location.pathname, params, {
             preserveState: true,
             preserveScroll: true,
@@ -169,6 +187,14 @@ onBeforeUnmount(() => {
             value-key="value"
             class="w-full lg:w-52"
             aria-label="Category"
+        />
+        <USelectMenu
+            v-if="partners"
+            v-model="state.partner"
+            :items="partnerItems"
+            value-key="value"
+            class="w-full lg:w-52"
+            aria-label="Partner"
         />
         <USelectMenu
             v-if="builders"

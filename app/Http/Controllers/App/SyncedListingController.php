@@ -6,9 +6,11 @@ use App\Enums\Permission;
 use App\Http\Controllers\Concerns\FiltersListings;
 use App\Http\Controllers\Concerns\PresentsRemoteMedia;
 use App\Http\Controllers\Controller;
+use App\Models\FederationPartner;
 use App\Models\ListingCopy;
 use App\Services\Federation\CategoryVocabulary;
 use App\Services\Federation\RichTextSanitizer;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -26,6 +28,12 @@ class SyncedListingController extends Controller
 {
     use FiltersListings, PresentsRemoteMedia;
 
+    /**
+     * Card-grid page size: a multiple of the two- and three-column grid
+     * widths so a full page never ends on a ragged row.
+     */
+    private const int PER_PAGE = 24;
+
     public function index(Request $request, CategoryVocabulary $categories): Response
     {
         return $this->typedIndex($request, $categories, 'sale');
@@ -42,21 +50,30 @@ class SyncedListingController extends Controller
 
         $filters = $this->listingFilters($request);
 
+        // A partner whose import type preference excludes this type stays
+        // out of the review queue entirely — the copy is still stored
+        // (sync substrate), just never surfaced. The same rule scopes the
+        // partner filter's options.
+        $acceptsType = fn (Builder $partners): Builder => $partners->where(
+            fn (Builder $query) => $query
+                ->where('import_types', 'both')
+                ->orWhere('import_types', $type),
+        );
+
         return Inertia::render('federation/listings/Index', [
             'listingType' => $type,
             'filters' => $filters,
             'categories' => $categories->all(),
+            'partners' => $this->partnerOptions(
+                $acceptsType(FederationPartner::query())
+                    ->whereHas('listingCopies', fn (Builder $copies) => $copies->where('type', $type)),
+            ),
             'copies' => ListingCopy::query()
                 ->with(['partner:id,domain,node_name,last_ok_at,created_at', 'import:id,listing_copy_id'])
                 ->where('type', $type)
-                // A partner whose import type preference excludes this
-                // type stays out of the review queue entirely — the copy
-                // is still stored (sync substrate), just never surfaced.
-                ->whereHas('partner', fn ($query) => $query->where(
-                    fn ($query) => $query
-                        ->where('import_types', 'both')
-                        ->orWhere('import_types', $type),
-                ))
+                ->whereHas('partner', $acceptsType)
+                ->when($filters['partner'] !== '', fn ($query) => $query
+                    ->where('federation_partner_id', (int) $filters['partner']))
                 ->when($filters['q'] !== '', fn ($query) => $query->where(
                     fn ($query) => $query
                         ->where('name', 'like', "%{$filters['q']}%")
@@ -74,8 +91,9 @@ class SyncedListingController extends Controller
                     $this->whereJsonNumeric($query, 'payload->vessel->loa_m', '<=', $filters['loa_max']);
                 })
                 ->orderByDesc('listing_updated_at')
-                ->get()
-                ->map(fn (ListingCopy $copy): array => [
+                ->paginate(self::PER_PAGE)
+                ->withQueryString()
+                ->through(fn (ListingCopy $copy): array => [
                     'id' => $copy->id,
                     'imported' => $copy->import !== null,
                     'importable' => $copy->tombstoned_at === null

@@ -1,11 +1,17 @@
 <script setup lang="ts">
 /*
  * Shared shell for the listing index pages: heading, page actions, the
- * filter bar, and the card grid with a per-page empty state.
+ * filter bar, the card grid with a per-page empty state, and paging
+ * controls when the index is paginated.
  */
 import Heading from '@/components/Heading.vue';
 import ListingFilterBar from '@/components/ListingFilterBar.vue';
-import type { ListingFilters } from '@/components/ListingFilterBar.vue';
+import type {
+    ListingFilters,
+    PartnerOption,
+} from '@/components/ListingFilterBar.vue';
+import PaginationControls from '@/components/PaginationControls.vue';
+import type { Paginated } from '@/types/pagination';
 
 defineProps<{
     title: string;
@@ -15,10 +21,12 @@ defineProps<{
     categories: { slug: string; name: string }[];
     builders?: string[];
     statuses?: { value: string; label: string }[];
+    partners?: PartnerOption[];
     showYearRange?: boolean;
     showPowerSail?: boolean;
     hasResults: boolean;
     empty: string;
+    paginator?: Omit<Paginated<unknown>, 'data'>;
 }>();
 </script>
 
@@ -36,6 +44,7 @@ defineProps<{
             :categories="categories"
             :builders="builders"
             :statuses="statuses"
+            :partners="partners"
             :show-year-range="showYearRange"
             :show-power-sail="showPowerSail"
             :placeholder="searchPlaceholder"
@@ -46,5 +55,7 @@ defineProps<{
         </div>
 
         <p v-else class="text-sm text-muted">{{ empty }}</p>
+
+        <PaginationControls v-if="paginator" :paginator="paginator" />
     </div>
 </template>

@@ -6,12 +6,16 @@ use App\Enums\TrustLevel;
 use App\Models\FederationPartner;
 use App\Models\ListingCopy;
 use App\Models\User;
+use App\Models\VisibilityEvent;
 use App\Services\Federation\KeyManager;
 use App\Services\Federation\NodeDirectoryIndex;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Activitylog\Models\Activity;
 
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
@@ -85,6 +89,71 @@ test('a partner can be approved and blocked through the UI', function () {
         ->assertRedirect();
 
     expect($partner->refresh()->trust_level)->toBe(TrustLevel::Blocked);
+});
+
+test("the node's own identity domain cannot be added as a partner", function () {
+    config(['openyacht.domain' => 'openyacht.this-node.example']);
+    Http::fake();
+
+    $this->actingAs(federationActor())
+        ->from(route('partners.index'))
+        ->post(route('partners.store'), ['domain' => 'OpenYacht.This-Node.Example'])
+        ->assertRedirect(route('partners.index'))
+        ->assertSessionHasErrors(['domain' => __('federation.domain_is_self')]);
+
+    expect(FederationPartner::query()->count())->toBe(0);
+    // Rejected before any well-known fetch.
+    Http::assertNothingSent();
+});
+
+test('a partner nothing has been received from can be removed, taking its sharing rows with it', function () {
+    $partner = FederationPartner::factory()->verified()->create();
+    $partner->groups()->create(['name' => 'Offices']);
+    DB::table('listing_audience_partners')->insert([
+        'listing_uuid' => (string) Str::uuid7(),
+        'federation_partner_id' => $partner->id,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    VisibilityEvent::query()->create([
+        'listing_uuid' => (string) Str::uuid7(),
+        'federation_partner_id' => $partner->id,
+        'event' => 'visible',
+        'occurred_at' => now(),
+    ]);
+
+    $this->actingAs(federationActor(Role::Admin))
+        ->delete(route('partners.destroy', $partner))
+        ->assertForbidden();
+
+    $this->actingAs(federationActor())
+        ->delete(route('partners.destroy', $partner))
+        ->assertRedirect(route('partners.index'))
+        ->assertSessionHasNoErrors();
+
+    expect(FederationPartner::query()->whereKey($partner->id)->exists())->toBeFalse()
+        ->and(DB::table('listing_audience_partners')->where('federation_partner_id', $partner->id)->exists())->toBeFalse()
+        ->and(DB::table('partner_group_members')->where('federation_partner_id', $partner->id)->exists())->toBeFalse()
+        ->and(VisibilityEvent::query()->where('federation_partner_id', $partner->id)->exists())->toBeFalse()
+        ->and(Activity::query()->where('event', 'partner_removed')->where('properties->domain', $partner->domain)->exists())->toBeTrue();
+});
+
+test('a partner with received copies cannot be removed, only blocked', function () {
+    $copy = ListingCopy::factory()->create();
+    $partner = $copy->partner;
+
+    $this->actingAs(federationActor())
+        ->get(route('partners.show', $partner))
+        ->assertInertia(fn (Assert $page) => $page->where('partner.is_removable', false));
+
+    $this->actingAs(federationActor())
+        ->from(route('partners.show', $partner))
+        ->delete(route('partners.destroy', $partner))
+        ->assertRedirect(route('partners.show', $partner))
+        ->assertSessionHasErrors('partner');
+
+    expect(FederationPartner::query()->whereKey($partner->id)->exists())->toBeTrue()
+        ->and(ListingCopy::query()->whereKey($copy->id)->exists())->toBeTrue();
 });
 
 test('the synced listings page requires a listings permission', function () {
@@ -214,7 +283,7 @@ test('import types are managed with the federation permission and hide the exclu
         $this->actingAs(federationActor(Role::SuperAdmin))
             ->get(route($routeName))
             ->assertOk()
-            ->original->getData()['page']['props']['copies'],
+            ->original->getData()['page']['props']['copies']['data'],
     )->pluck('id')->all();
 
     expect($listingIds('synced-listings.index'))->toBe([$saleCopy->id])
