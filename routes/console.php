@@ -19,6 +19,11 @@ Schedule::command('openyacht:sync')->hourly();
 // imports are skipped — the job is unique per yacht.
 Schedule::command('openyacht:sync-media')->hourly();
 
+// Per-endpoint "freshness floor" for webhook consumers: ping any endpoint
+// whose configured interval has elapsed since its last notification. The
+// intervals are in whole hours, so an hourly tick is exact enough.
+Schedule::command('openyacht:notify-scheduled')->hourly();
+
 // Enforce the activity-log retention window daily (0 days = keep forever).
 Schedule::command('openyacht:prune-activity-log')->daily();
 

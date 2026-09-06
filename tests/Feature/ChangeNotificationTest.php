@@ -5,6 +5,7 @@ use App\Jobs\SendChangeNotification;
 use App\Models\SaleYacht;
 use App\Models\WebhookEndpoint;
 use App\Services\ChangeNotifier;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -158,4 +159,81 @@ test('the artisan trigger sends immediately and reports when no endpoint is acti
     WebhookEndpoint::query()->update(['is_active' => false]);
 
     $this->artisan('openyacht:notify-change')->assertFailed();
+})->group('demo-node');
+
+test('every ping stamps last_notified_at, which the scheduled floor measures from', function () {
+    $endpoint = WebhookEndpoint::factory()->create();
+    Queue::fake();
+
+    expect($endpoint->last_notified_at)->toBeNull();
+
+    app(ChangeNotifier::class)->notify('sync:partner.example 1 created');
+
+    expect($endpoint->refresh()->last_notified_at)->not->toBeNull();
+})->group('demo-node');
+
+test('the scheduled ping fires only once the interval has elapsed since the last ping of any kind', function () {
+    Queue::fake();
+    $this->travelTo(now()->startOfHour());
+
+    $daily = WebhookEndpoint::factory()->scheduledEvery(1440)->create();
+    $hourly = WebhookEndpoint::factory()->scheduledEvery(60)->create();
+    $unscheduled = WebhookEndpoint::factory()->create();
+    $disabled = WebhookEndpoint::factory()->inactive()->scheduledEvery(60)->create();
+
+    $notifier = app(ChangeNotifier::class);
+
+    expect($notifier->notifyScheduled())->toBe(2);
+    Queue::assertPushed(SendChangeNotification::class, 2);
+    Queue::assertPushed(SendChangeNotification::class, fn (SendChangeNotification $job) => $job->endpoint->is($daily) && $job->reason === 'scheduled:every 24 h');
+    Queue::assertPushed(SendChangeNotification::class, fn (SendChangeNotification $job) => $job->endpoint->is($hourly) && $job->reason === 'scheduled:every 1 h');
+    Queue::assertNotPushed(SendChangeNotification::class, fn (SendChangeNotification $job) => $job->endpoint->is($unscheduled) || $job->endpoint->is($disabled));
+
+    $this->travel(30)->minutes();
+    expect($notifier->notifyScheduled())->toBe(0);
+
+    $this->travel(30)->minutes();
+    expect($notifier->notifyScheduled())->toBe(1);
+    Queue::assertPushed(SendChangeNotification::class, 3);
+
+    $this->travel(23)->hours();
+    $notifier->notify('sync:partner.example 1 updated');
+    Queue::assertPushed(SendChangeNotification::class, 6);
+
+    $this->travel(1)->hours();
+    expect($notifier->notifyScheduled())->toBe(1);
+    Queue::assertPushed(SendChangeNotification::class, fn (SendChangeNotification $job) => $job->endpoint->is($daily) && str_starts_with($job->reason, 'scheduled:'), 1);
+
+    $this->travel(23)->hours();
+    expect($notifier->notifyScheduled())->toBe(2);
+})->group('demo-node');
+
+test('a tick a few seconds short of the interval still counts as due', function () {
+    Queue::fake();
+    $endpoint = WebhookEndpoint::factory()->scheduledEvery(1440)->create(['last_notified_at' => now()->subMinutes(1440)->addSeconds(30)]);
+
+    expect($endpoint->isScheduledPingDue())->toBeTrue();
+
+    $endpoint->forceFill(['last_notified_at' => now()->subMinutes(1440 - WebhookEndpoint::SCHEDULE_TOLERANCE_MINUTES - 1)])->save();
+
+    expect($endpoint->isScheduledPingDue())->toBeFalse();
+})->group('demo-node');
+
+test('the scheduled artisan command is registered hourly and reports what it queued', function () {
+    Queue::fake();
+    WebhookEndpoint::factory()->scheduledEvery(60)->create();
+
+    $this->artisan('openyacht:notify-scheduled')
+        ->expectsOutputToContain('queued to 1 endpoint')
+        ->assertSuccessful();
+
+    $this->artisan('openyacht:notify-scheduled')
+        ->expectsOutputToContain('No scheduled notifications are due')
+        ->assertSuccessful();
+
+    $events = collect(app(Schedule::class)->events())
+        ->filter(fn ($event) => str_contains($event->command ?? '', 'openyacht:notify-scheduled'));
+
+    expect($events)->toHaveCount(1)
+        ->and($events->first()->expression)->toBe('0 * * * *');
 })->group('demo-node');

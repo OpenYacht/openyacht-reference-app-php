@@ -145,3 +145,38 @@ test('the test button queues a ping to that endpoint alone, even while disabled'
     Queue::assertPushed(SendChangeNotification::class, 1);
     Queue::assertPushed(SendChangeNotification::class, fn (SendChangeNotification $job) => $job->endpoint->is($endpoint) && $job->reason === 'test');
 })->group('demo-node');
+
+test('an endpoint can be created and edited with a scheduled ping interval within one hour and one week', function () {
+    $admin = webhookAdmin();
+
+    $this->actingAs($admin)
+        ->post(route('webhooks.store'), ['name' => 'Site', 'url' => 'https://site.example/hook', 'schedule_interval_minutes' => 1440])
+        ->assertRedirect(route('webhooks.index'));
+
+    $endpoint = WebhookEndpoint::query()->sole();
+    expect($endpoint->schedule_interval_minutes)->toBe(1440);
+
+    $this->actingAs($admin)
+        ->put(route('webhooks.update', $endpoint), ['name' => 'Site', 'url' => 'https://site.example/hook', 'schedule_interval_minutes' => null])
+        ->assertRedirect();
+    expect($endpoint->refresh()->schedule_interval_minutes)->toBeNull();
+
+    $this->actingAs($admin)
+        ->put(route('webhooks.update', $endpoint), ['is_active' => false])
+        ->assertRedirect();
+    expect($endpoint->refresh()->schedule_interval_minutes)->toBeNull();
+
+    foreach ([30, 10081, 'daily'] as $invalid) {
+        $this->actingAs($admin)
+            ->post(route('webhooks.store'), ['name' => 'Bad', 'url' => 'https://bad.example/hook', 'schedule_interval_minutes' => $invalid])
+            ->assertSessionHasErrors('schedule_interval_minutes');
+    }
+
+    $this->actingAs($admin)
+        ->get(route('webhooks.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('endpoints.0.schedule_interval_minutes', null)
+            ->where('endpoints.0.last_notified_at', null)
+            ->where('schedulePresets', [60, 360, 720, 1440, 10080]),
+        );
+})->group('demo-node');

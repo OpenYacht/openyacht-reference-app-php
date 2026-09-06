@@ -22,6 +22,17 @@ class WebhookEndpointController extends Controller
 {
     private const RECENT_DELIVERIES = 10;
 
+    /**
+     * Scheduled-ping intervals offered in the admin, in minutes. Any whole
+     * number of minutes between one hour and one week is accepted; these
+     * are the presets the select shows.
+     *
+     * @var list<int>
+     */
+    private const SCHEDULE_PRESETS = [60, 360, 720, 1440, 10080];
+
+    private const SCHEDULE_RULES = ['nullable', 'integer', 'min:60', 'max:10080'];
+
     public function index(): Response
     {
         Gate::authorize(Permission::ManageSettings->value);
@@ -37,6 +48,8 @@ class WebhookEndpointController extends Controller
                     'url' => $endpoint->url,
                     'has_secret' => $endpoint->secret !== null,
                     'is_active' => $endpoint->is_active,
+                    'schedule_interval_minutes' => $endpoint->schedule_interval_minutes,
+                    'last_notified_at' => $endpoint->last_notified_at?->diffForHumans(),
                     'last_succeeded_at' => $endpoint->last_succeeded_at?->diffForHumans(),
                     'last_failed_at' => $endpoint->last_failed_at?->diffForHumans(),
                     'consecutive_failures' => $endpoint->consecutive_failures,
@@ -56,6 +69,7 @@ class WebhookEndpointController extends Controller
                         ->all(),
                 ]),
             'cooldownMinutes' => (int) config('openyacht.change_notifications.cooldown_minutes'),
+            'schedulePresets' => self::SCHEDULE_PRESETS,
         ]);
     }
 
@@ -67,12 +81,14 @@ class WebhookEndpointController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'url' => ['required', 'string', 'max:2000', 'url:http,https'],
             'secret' => ['nullable', 'string', 'max:255'],
+            'schedule_interval_minutes' => self::SCHEDULE_RULES,
         ]);
 
         $endpoint = WebhookEndpoint::create([
             'name' => $validated['name'],
             'url' => $validated['url'],
             'secret' => ($validated['secret'] ?? '') === '' ? null : $validated['secret'],
+            'schedule_interval_minutes' => $validated['schedule_interval_minutes'] ?? null,
             'created_by_user_id' => $request->user()?->id,
         ]);
 
@@ -86,8 +102,8 @@ class WebhookEndpointController extends Controller
 
     /**
      * Partial update: the list's enable/disable toggle sends is_active
-     * alone; the edit dialog sends name, url and optionally a new secret
-     * (blank keeps the current one, clear_secret removes it).
+     * alone; the edit dialog sends name, url, the schedule and optionally
+     * a new secret (blank keeps the current one, clear_secret removes it).
      */
     public function update(Request $request, WebhookEndpoint $webhook): RedirectResponse
     {
@@ -99,9 +115,10 @@ class WebhookEndpointController extends Controller
             'secret' => ['sometimes', 'nullable', 'string', 'max:255'],
             'clear_secret' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
+            'schedule_interval_minutes' => ['sometimes', ...self::SCHEDULE_RULES],
         ]);
 
-        $attributes = array_intersect_key($validated, array_flip(['name', 'url', 'is_active']));
+        $attributes = array_intersect_key($validated, array_flip(['name', 'url', 'is_active', 'schedule_interval_minutes']));
 
         if (($validated['secret'] ?? '') !== '') {
             $attributes['secret'] = $validated['secret'];

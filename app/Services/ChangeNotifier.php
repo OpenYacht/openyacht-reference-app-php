@@ -21,6 +21,13 @@ use Illuminate\Support\Facades\Log;
  * holding up the others. The reason string is logged and sent because it
  * answers "why isn't my update showing yet" when read beside a
  * consumer's build history.
+ *
+ * Each endpoint may also carry a scheduled interval — the "freshness
+ * floor" for consumers that build from data this node never sees change
+ * (exchange rates, partners' well-known documents). notifyScheduled(),
+ * run hourly by the scheduler, pings an endpoint only when that interval
+ * has elapsed since its last ping of any kind, so a node that is already
+ * sending change notifications never adds a scheduled one on top.
  */
 class ChangeNotifier
 {
@@ -54,10 +61,28 @@ class ChangeNotifier
         Log::info("Change notification queued: {$reason}", $counts);
 
         foreach ($endpoints as $endpoint) {
-            SendChangeNotification::dispatch($endpoint, $reason, $counts);
+            $this->dispatch($endpoint, $reason, $counts);
         }
 
         return true;
+    }
+
+    /**
+     * Queue a scheduled ping to every endpoint whose interval has elapsed.
+     * Returns how many were queued.
+     */
+    public function notifyScheduled(): int
+    {
+        $due = WebhookEndpoint::query()->active()->whereNotNull('schedule_interval_minutes')->get()
+            ->filter(fn (WebhookEndpoint $endpoint): bool => $endpoint->isScheduledPingDue());
+
+        foreach ($due as $endpoint) {
+            $reason = "scheduled:{$endpoint->scheduleLabel()}";
+            Log::info("Scheduled change notification queued to {$endpoint->url}: {$reason}");
+            $this->dispatch($endpoint, $reason);
+        }
+
+        return $due->count();
     }
 
     /**
@@ -66,6 +91,19 @@ class ChangeNotifier
      */
     public function test(WebhookEndpoint $endpoint): void
     {
-        SendChangeNotification::dispatch($endpoint, 'test');
+        $this->dispatch($endpoint, 'test');
+    }
+
+    /**
+     * Every ping goes through here so last_notified_at — what the
+     * scheduled floor measures from — is stamped for every kind of ping.
+     *
+     * @param  array<string, int>  $counts
+     */
+    private function dispatch(WebhookEndpoint $endpoint, string $reason, array $counts = []): void
+    {
+        $endpoint->forceFill(['last_notified_at' => now()])->saveQuietly();
+
+        SendChangeNotification::dispatch($endpoint, $reason, $counts);
     }
 }

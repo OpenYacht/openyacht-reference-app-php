@@ -28,6 +28,11 @@ class WebhookEndpointFactory extends Factory
         return $this->state(['is_active' => false]);
     }
 
+    public function scheduledEvery(int $minutes): static
+    {
+        return $this->state(['schedule_interval_minutes' => $minutes]);
+    }
+
     public function withSecret(string $secret = 'shhh'): static
     {
         return $this->state(['secret' => $secret]);

@@ -21,6 +21,8 @@ type EndpointRow = {
     url: string;
     has_secret: boolean;
     is_active: boolean;
+    schedule_interval_minutes: number | null;
+    last_notified_at: string | null;
     last_succeeded_at: string | null;
     last_failed_at: string | null;
     consecutive_failures: number;
@@ -28,9 +30,10 @@ type EndpointRow = {
     deliveries: DeliveryRow[];
 };
 
-defineProps<{
+const props = defineProps<{
     endpoints: EndpointRow[];
     cooldownMinutes: number;
+    schedulePresets: number[];
 }>();
 
 defineOptions({
@@ -53,7 +56,38 @@ const form = useForm({
     url: '',
     secret: '',
     clear_secret: false,
+    schedule_interval_minutes: 0,
 });
+
+const scheduleLabel = (minutes: number | null) => {
+    if (minutes === null || minutes === 0) {
+        return 'Off';
+    }
+
+    if (minutes % 10080 === 0) {
+        return minutes === 10080
+            ? 'Every week'
+            : `Every ${minutes / 10080} weeks`;
+    }
+
+    if (minutes % 1440 === 0) {
+        return minutes === 1440 ? 'Every day' : `Every ${minutes / 1440} days`;
+    }
+
+    if (minutes % 60 === 0) {
+        return minutes === 60 ? 'Every hour' : `Every ${minutes / 60} hours`;
+    }
+
+    return `Every ${minutes} minutes`;
+};
+
+const scheduleItems = [
+    { value: 0, label: 'Off — change notifications only' },
+    ...props.schedulePresets.map((minutes) => ({
+        value: minutes,
+        label: scheduleLabel(minutes),
+    })),
+];
 
 const openCreate = () => {
     editing.value = null;
@@ -68,6 +102,7 @@ const openEdit = (endpoint: EndpointRow) => {
     form.clearErrors();
     form.name = endpoint.name;
     form.url = endpoint.url;
+    form.schedule_interval_minutes = endpoint.schedule_interval_minutes ?? 0;
     showModal.value = true;
 };
 
@@ -79,6 +114,11 @@ const submit = () => {
             form.reset();
         },
     };
+
+    form.transform((data) => ({
+        ...data,
+        schedule_interval_minutes: data.schedule_interval_minutes || null,
+    }));
 
     if (editing.value) {
         form.put(update.url({ webhook: editing.value.id }), options);
@@ -166,9 +206,11 @@ const healthBadge = (endpoint: EndpointRow) => {
                 Each endpoint receives one POST per batch of changes — a sync
                 cycle, an import, an edit to a published listing — never one per
                 listing, with a {{ cooldownMinutes }}-minute cooldown between
-                pings. The body carries only a timestamp, a reason and counts;
-                consumers fetch the details from the data API. The secret, when
-                set, is sent as the
+                pings. An endpoint with a schedule is also pinged whenever that
+                interval passes without any other ping, for consumers that
+                rebuild from data this node cannot see change. The body carries
+                only a timestamp, a reason and counts; consumers fetch the
+                details from the data API. The secret, when set, is sent as the
                 <code class="font-mono text-xs"
                     >X-OpenYacht-Webhook-Secret</code
                 >
@@ -199,6 +241,20 @@ const healthBadge = (endpoint: EndpointRow) => {
                                 :label="healthBadge(endpoint).label"
                             />
                             <UBadge
+                                v-if="
+                                    endpoint.schedule_interval_minutes !== null
+                                "
+                                color="neutral"
+                                variant="outline"
+                                size="sm"
+                                icon="i-lucide-clock"
+                                :label="
+                                    scheduleLabel(
+                                        endpoint.schedule_interval_minutes,
+                                    )
+                                "
+                            />
+                            <UBadge
                                 v-if="endpoint.has_secret"
                                 color="neutral"
                                 variant="outline"
@@ -219,7 +275,8 @@ const healthBadge = (endpoint: EndpointRow) => {
                             >{{ endpoint.url }}</code
                         >
                         <p class="mt-1 text-sm text-muted">
-                            last success
+                            last ping {{ endpoint.last_notified_at ?? 'never' }}
+                            · last success
                             {{ endpoint.last_succeeded_at ?? 'never' }}
                             <template v-if="endpoint.last_failed_at">
                                 · last failure {{ endpoint.last_failed_at }}
@@ -416,6 +473,18 @@ const healthBadge = (endpoint: EndpointRow) => {
                                 @click="generateSecret"
                             />
                         </div>
+                    </UFormField>
+
+                    <UFormField
+                        label="Scheduled ping"
+                        :error="form.errors.schedule_interval_minutes"
+                        help="Also ping when this long passes without a change notification — the freshness floor for consumers that build from data this node cannot see change, such as exchange rates."
+                    >
+                        <USelect
+                            v-model="form.schedule_interval_minutes"
+                            :items="scheduleItems"
+                            class="w-full"
+                        />
                     </UFormField>
 
                     <UCheckbox

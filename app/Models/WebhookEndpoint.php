@@ -24,12 +24,14 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property string $url
  * @property string|null $secret
  * @property bool $is_active
+ * @property int|null $schedule_interval_minutes
+ * @property Carbon|null $last_notified_at
  * @property Carbon|null $last_succeeded_at
  * @property Carbon|null $last_failed_at
  * @property int $consecutive_failures
  * @property int|null $created_by_user_id
  */
-#[Fillable(['name', 'url', 'secret', 'is_active', 'created_by_user_id'])]
+#[Fillable(['name', 'url', 'secret', 'is_active', 'schedule_interval_minutes', 'created_by_user_id'])]
 class WebhookEndpoint extends Model
 {
     /** @use HasFactory<WebhookEndpointFactory> */
@@ -43,6 +45,13 @@ class WebhookEndpoint extends Model
     public const DELIVERY_LOG_SIZE = 50;
 
     /**
+     * Slack applied when deciding whether a scheduled ping is due, so an
+     * hourly scheduler tick a few seconds short of the interval does not
+     * push the ping a whole hour later.
+     */
+    public const SCHEDULE_TOLERANCE_MINUTES = 5;
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -52,6 +61,8 @@ class WebhookEndpoint extends Model
         return [
             'secret' => 'encrypted',
             'is_active' => 'boolean',
+            'schedule_interval_minutes' => 'integer',
+            'last_notified_at' => 'datetime',
             'last_succeeded_at' => 'datetime',
             'last_failed_at' => 'datetime',
             'consecutive_failures' => 'integer',
@@ -73,6 +84,43 @@ class WebhookEndpoint extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Whether this endpoint's scheduled ping is due: it has a schedule and
+     * the interval has elapsed (less the tolerance) since its last
+     * notification of any kind. A never-notified endpoint is due at once.
+     * Decided in PHP rather than SQL because the interval is per row and
+     * date arithmetic is not portable across SQLite, MySQL and MariaDB.
+     */
+    public function isScheduledPingDue(): bool
+    {
+        if (! $this->is_active || $this->schedule_interval_minutes === null) {
+            return false;
+        }
+
+        if ($this->last_notified_at === null) {
+            return true;
+        }
+
+        return $this->last_notified_at
+            ->addMinutes($this->schedule_interval_minutes)
+            ->subMinutes(self::SCHEDULE_TOLERANCE_MINUTES)
+            ->lessThanOrEqualTo(now());
+    }
+
+    /**
+     * Human label for the schedule ("every 24 h"), used in reason strings.
+     */
+    public function scheduleLabel(): ?string
+    {
+        if ($this->schedule_interval_minutes === null) {
+            return null;
+        }
+
+        return $this->schedule_interval_minutes % 60 === 0
+            ? 'every '.intdiv($this->schedule_interval_minutes, 60).' h'
+            : "every {$this->schedule_interval_minutes} min";
     }
 
     /**
