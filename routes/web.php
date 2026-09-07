@@ -50,6 +50,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('federation/partners/{partner}', [PartnerController::class, 'destroy'])->name('partners.destroy');
     Route::post('federation/partners/{partner}/refresh-keys', [PartnerController::class, 'refreshKeys'])->name('partners.refresh-keys');
     Route::post('federation/partners/{partner}/sync', [PartnerController::class, 'sync'])->name('partners.sync');
+    Route::post('federation/partners/{partner}/subscribe', [PartnerController::class, 'subscribe'])->name('partners.subscribe');
+    Route::delete('federation/partners/{partner}/subscribe', [PartnerController::class, 'unsubscribe'])->name('partners.unsubscribe');
     Route::put('federation/partners/{partner}/field-groups', [PartnerController::class, 'updateFieldGroups'])->name('partners.field-groups.update');
     Route::put('federation/partners/{partner}/acceptance-policy', [PartnerController::class, 'updateAcceptancePolicy'])->name('partners.acceptance-policy.update');
     Route::put('federation/partners/{partner}/sharing-scope', [PartnerController::class, 'updateSharingScope'])->name('partners.sharing-scope.update');

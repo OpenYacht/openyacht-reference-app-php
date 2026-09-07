@@ -6,8 +6,9 @@ namespace App\Services\Federation;
  * Builds the node's discovery document served at /.well-known/openyacht.
  *
  * The endpoints map only advertises endpoints this node actually serves;
- * `subscriptions` is added when the optional subscriptions feature is
- * implemented and advertised in capabilities.
+ * `subscriptions` appears because the optional push feature is
+ * implemented and advertised in capabilities (api-design.md
+ * §Subscriptions).
  *
  * // federation-protocol.md §Discovery: the well-known endpoint
  */
@@ -41,6 +42,7 @@ class WellKnownDocument
             'endpoints' => [
                 'listings' => '/openyacht/v1/listings',
                 'partners' => '/openyacht/v1/partners',
+                'subscriptions' => '/openyacht/v1/subscriptions',
                 'health' => '/openyacht/v1/health',
                 'capabilities' => '/openyacht/v1/capabilities',
             ],

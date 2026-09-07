@@ -75,42 +75,14 @@ class SharingService
         $hidden = 0;
         $revealed = 0;
 
-        $groupMemberIds = PartnerGroup::query()
-            ->whereKey($selectedGroupIds)
-            ->with('members:id')
-            ->get()
-            ->flatMap(fn (PartnerGroup $group) => $group->members->modelKeys())
-            ->all();
-
-        $visibleAfter = fn (FederationPartner $partner): bool => match ($audience) {
-            Audience::Everyone => $partner->sharing_scope === SharingScope::Standard
-                || in_array($partner->id, $selectedPartnerIds, true)
-                || in_array($partner->id, $groupMemberIds, true),
-            Audience::None => false,
-            Audience::Selected => in_array($partner->id, $selectedPartnerIds, true)
-                || in_array($partner->id, $groupMemberIds, true),
-        };
-
         // Drafts are never distributed (LS-7): audience changes before
         // first publication need no transitions — no partner ever saw the
         // listing, so there is nothing to tombstone or resurface.
-        if ($listing->status !== ListingStatus::Draft) {
-            foreach (FederationPartner::all() as $partner) {
-                $before = $this->isVisibleTo($listing, $partner);
-                $after = $visibleAfter($partner);
+        $partners = $listing->status !== ListingStatus::Draft ? FederationPartner::all() : collect();
+        $before = [];
 
-                if ($before === $after) {
-                    continue;
-                }
-
-                VisibilityEvent::create([
-                    'listing_uuid' => $listing->uuid,
-                    'federation_partner_id' => $partner->id,
-                    'event' => $after ? VisibilityTransition::Visible : VisibilityTransition::Hidden,
-                    'occurred_at' => $now,
-                ]);
-                $after ? $revealed++ : $hidden++;
-            }
+        foreach ($partners as $partner) {
+            $before[$partner->id] = $this->isVisibleTo($listing, $partner);
         }
 
         // Pivots persist under everyone AND selected (additive: under
@@ -123,9 +95,28 @@ class SharingService
         }
         // Not mass-assignable and deliberately not stamped: the concern's
         // updating hook skips federation_updated_at for audience-only
-        // changes — the events above move exactly the affected partners.
+        // changes — the events below move exactly the affected partners.
         $listing->audience = $audience;
         $listing->save();
+
+        // Apply first, then re-ask the one rule and diff — so the state
+        // is already in place when each event's push delivery derives
+        // its payload (which may run at once on a synchronous queue).
+        foreach ($partners as $partner) {
+            $isVisible = $this->isVisibleTo($listing, $partner);
+
+            if ($before[$partner->id] === $isVisible) {
+                continue;
+            }
+
+            VisibilityEvent::create([
+                'listing_uuid' => $listing->uuid,
+                'federation_partner_id' => $partner->id,
+                'event' => $isVisible ? VisibilityTransition::Visible : VisibilityTransition::Hidden,
+                'occurred_at' => $now,
+            ]);
+            $isVisible ? $revealed++ : $hidden++;
+        }
 
         if ($hidden + $revealed > 0) {
             activity('sharing')

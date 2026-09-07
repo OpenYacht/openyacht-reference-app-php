@@ -13,7 +13,9 @@ use Illuminate\Http\JsonResponse;
  * flag. `charter_listings` governs whether the node implements the
  * charter block of the wire schema, not what inventory it holds
  * (api-design.md): this node authors and serves charter listings, so it
- * advertises true even when it happens to hold none.
+ * advertises true even when it happens to hold none. `subscriptions`
+ * is the optional push layer (api-design.md §Subscriptions): this node
+ * accepts callback registrations and delivers signed pushes (API-10).
  *
  * // api-design.md §Capabilities
  */
@@ -24,7 +26,7 @@ class CapabilitiesController extends Controller
         return response()->json([
             'protocol_versions' => config('openyacht.protocol_versions'),
             'features' => [
-                'subscriptions' => false,
+                'subscriptions' => true,
                 'charter_listings' => true,
                 'media_hashes' => true,
             ],

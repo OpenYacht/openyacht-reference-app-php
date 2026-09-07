@@ -7,6 +7,7 @@ use App\Enums\ListingStatus;
 use App\Models\FederationPartner;
 use App\Models\PartnerGroup;
 use App\Services\ChangeNotifier;
+use App\Services\Federation\SubscriptionService;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -73,6 +74,27 @@ trait FederatedListing
 
             if ($yacht->servesPublicOutput() || $yacht->servedPublicOutputBeforeSave()) {
                 app(ChangeNotifier::class)->notify("listing:{$yacht->uuid} updated");
+            }
+        });
+
+        // The federation_updated_at stamp is also what push subscribers
+        // are told about (api-design.md §Subscriptions): every stamp on
+        // a non-draft listing queues a delivery per subscribed partner —
+        // the same changes a poll would report. Drafts are never
+        // distributed (LS-7); audience-only changes reach the affected
+        // partners through the visibility events instead.
+        //
+        // This one hangs off saved, deliberately: saved fires after every
+        // created/updated listener, including a model's own (SaleYacht
+        // appends the price-history row in one), so a delivery that runs
+        // at once on a synchronous queue serialises the complete listing.
+        // The guard is isDirty(), not wasChanged(): during saved the
+        // original is not yet synced, so isDirty() is true exactly when
+        // THIS save wrote the stamp, and false for the no-op save that
+        // still fires saved with the previous save's change set.
+        static::saved(function (self $yacht): void {
+            if ($yacht->isDirty('federation_updated_at') && $yacht->status !== ListingStatus::Draft) {
+                app(SubscriptionService::class)->listingChanged($yacht);
             }
         });
 

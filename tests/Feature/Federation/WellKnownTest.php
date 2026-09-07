@@ -31,6 +31,7 @@ test('the well-known document contains versions, node identity, keys, and endpoi
         ->assertJsonPath('keys.0.algorithm', 'ed25519')
         ->assertJsonPath('keys.0.public_key', $key->public_key)
         ->assertJsonPath('endpoints.listings', '/openyacht/v1/listings')
+        ->assertJsonPath('endpoints.subscriptions', '/openyacht/v1/subscriptions')
         ->assertJsonPath('endpoints.health', '/openyacht/v1/health')
         ->assertJsonPath('endpoints.capabilities', '/openyacht/v1/capabilities')
         ->assertJsonStructure(['generated_at']);

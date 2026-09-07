@@ -53,7 +53,9 @@ class OpenYachtSync extends Command
 
         foreach ($partners as $partner) {
             if (! $this->option('force') && ! $sync->isDue($partner)) {
-                $this->line("{$partner->domain}: backing off ({$partner->consecutive_failures} consecutive failures)");
+                $this->line($partner->consecutive_failures > 0
+                    ? "{$partner->domain}: backing off ({$partner->consecutive_failures} consecutive failures)"
+                    : "{$partner->domain}: push-subscribed — daily reconciliation poll not yet due");
 
                 continue;
             }

@@ -91,22 +91,16 @@ class ListingsController extends Controller
         }
 
         return response()->json([
+            // Unshared rows tombstone at the transition, ended rows with
+            // their real status, the rest as the gated payload — the same
+            // decision a push delivery makes (ListingSerializer::feedItem).
             'data' => $page
-                ->map(function (SaleYacht|CharterYacht $yacht) use ($serializer, $partner): array {
-                    if (! $yacht->visible_now) {
-                        // Unshared: a tombstone indistinguishable from a
-                        // real withdrawal, timestamped at the transition.
-                        return $serializer->tombstone(
-                            $yacht,
-                            $yacht->status->isTerminal() ? null : ListingStatus::Withdrawn,
-                            Carbon::parse($yacht->effective_updated_at, 'UTC'),
-                        );
-                    }
-
-                    return $yacht->status->isTerminal()
-                        ? $serializer->tombstone($yacht)
-                        : $serializer->serialize($yacht, $partner);
-                })
+                ->map(fn (SaleYacht|CharterYacht $yacht): array => $serializer->feedItem(
+                    $yacht,
+                    $partner,
+                    (bool) $yacht->visible_now,
+                    Carbon::parse($yacht->effective_updated_at, 'UTC'),
+                ))
                 ->values(),
             'meta' => $meta,
         ]);

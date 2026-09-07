@@ -10,7 +10,8 @@ test('capabilities is served unsigned with protocol versions, features, and limi
         ->assertJson([
             'protocol_versions' => ['1.0'],
             'features' => [
-                'subscriptions' => false,
+                // The optional push layer is implemented (API-10).
+                'subscriptions' => true,
                 // charter_listings governs implementing the charter block
                 // of the wire schema, not inventory held (api-design.md).
                 'charter_listings' => true,
@@ -21,7 +22,7 @@ test('capabilities is served unsigned with protocol versions, features, and limi
                 'rate_per_hour' => 500,
             ],
         ]);
-})->group('API-6');
+})->group('API-6', 'API-10');
 
 test('health is served unsigned', function () {
     $this->get('https://openyacht.example.test/openyacht/v1/health')

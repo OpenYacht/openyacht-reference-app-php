@@ -46,6 +46,11 @@ use Illuminate\Support\Carbon;
  * @property string|null $request_message
  * @property string|null $request_contact_email
  * @property Carbon|null $requested_at
+ * @property string|null $push_callback_url
+ * @property Carbon|null $push_callback_registered_at
+ * @property Carbon|null $push_last_delivered_at
+ * @property Carbon|null $push_last_failed_at
+ * @property Carbon|null $push_subscribed_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -55,6 +60,7 @@ use Illuminate\Support\Carbon;
     'consecutive_failures', 'last_synced_at', 'last_attempted_at',
     'acceptance_policy', 'sharing_scope', 'import_types',
     'request_sent_at', 'request_message', 'request_contact_email', 'requested_at',
+    'push_callback_url', 'push_callback_registered_at', 'push_subscribed_at',
 ])]
 class FederationPartner extends Model
 {
@@ -94,6 +100,10 @@ class FederationPartner extends Model
             'last_attempted_at' => 'datetime',
             'request_sent_at' => 'datetime',
             'requested_at' => 'datetime',
+            'push_callback_registered_at' => 'datetime',
+            'push_last_delivered_at' => 'datetime',
+            'push_last_failed_at' => 'datetime',
+            'push_subscribed_at' => 'datetime',
         ];
     }
 
@@ -119,6 +129,30 @@ class FederationPartner extends Model
     public function groups(): BelongsToMany
     {
         return $this->belongsToMany(PartnerGroup::class, 'partner_group_members');
+    }
+
+    /**
+     * Whether this partner subscribed to this node's changes: it holds a
+     * registered callback, and a verified partnership — the same bar the
+     * feed itself applies (FP-13), so a partner blocked or downgraded
+     * after subscribing stops receiving pushes at once.
+     *
+     * // api-design.md §Subscriptions (API-10)
+     */
+    public function receivesPushes(): bool
+    {
+        return $this->push_callback_url !== null && $this->trust_level === TrustLevel::Verified;
+    }
+
+    /**
+     * Whether this node subscribed to the partner's changes — its pushes
+     * are accepted at the inbox and its reconciliation poll is daily.
+     *
+     * // api-design.md §Subscriptions (API-11)
+     */
+    public function isPushSubscribed(): bool
+    {
+        return $this->push_subscribed_at !== null;
     }
 
     /**

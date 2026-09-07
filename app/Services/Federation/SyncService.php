@@ -6,6 +6,7 @@ use App\Enums\AcceptancePolicy;
 use App\Enums\ListingStatus;
 use App\Models\FederationPartner;
 use App\Models\ListingCopy;
+use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Carbon;
 use Throwable;
@@ -15,13 +16,23 @@ use Throwable;
  * updated_since polling afterwards (API-2). Tombstones mark copies
  * withdrawn/sold and remove them from public display (ID-7); the
  * updated_since watermark is the authority's meta.generated_at so clock
- * skew between nodes cannot open a gap.
+ * skew between nodes cannot open a gap. Pushed deliveries (API-11) enter
+ * through applyDelivery() and take the same per-item path.
  *
  * // api-design.md §Listings
  * // yacht-identity.md §What everyone else holds
  */
 class SyncService
 {
+    /**
+     * How often a push-subscribed partner is still polled (API-11). The
+     * tolerance keeps an hourly scheduler tick a few seconds short of
+     * the day from slipping the poll a whole hour.
+     */
+    public const RECONCILIATION_INTERVAL_HOURS = 24;
+
+    public const RECONCILIATION_TOLERANCE_MINUTES = 5;
+
     public function __construct(
         private SignedClient $client,
         private ImportService $imports,
@@ -77,19 +88,90 @@ class SyncService
     }
 
     /**
-     * Exponential backoff between failed attempts, capped at 24 hours.
+     * Apply one pushed listing or tombstone (API-11) — the same path a
+     * polled item takes, behind one extra check: deliveries are
+     * at-least-once, so one that already took effect is answered
+     * 'duplicate' and left alone. Deduplication is on (id, updated_at)
+     * against the stored copy rather than a log of receipts: a re-shared
+     * listing legitimately arrives again with the same updated_at it had
+     * before its tombstone, and must apply — what makes a delivery a
+     * repeat is that the copy already holds that exact state.
+     *
+     * @param  array<string, mixed>  $item
+     * @return string created|updated|tombstoned|duplicate|skipped
+     */
+    public function applyDelivery(FederationPartner $partner, array $item): string
+    {
+        if ($this->alreadyApplied($partner, $item)) {
+            return 'duplicate';
+        }
+
+        return $this->apply($partner, $item, $partner->effectiveAcceptancePolicy());
+    }
+
+    /**
+     * Whether the stored copy already reflects this delivery: same
+     * updated_at, and tombstoned iff the delivery is a tombstone.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function alreadyApplied(FederationPartner $partner, array $item): bool
+    {
+        $canonicalUri = $item['id'] ?? null;
+        $updatedAt = $item['updated_at'] ?? null;
+
+        if (! is_string($canonicalUri) || ! is_string($updatedAt)) {
+            return false;
+        }
+
+        $copy = ListingCopy::query()
+            ->where('federation_partner_id', $partner->id)
+            ->where('canonical_uri', $canonicalUri)
+            ->first();
+
+        if ($copy === null || $copy->listing_updated_at === null) {
+            return false;
+        }
+
+        try {
+            $deliveredAt = Carbon::parse($updatedAt);
+        } catch (InvalidFormatException) {
+            return false;
+        }
+
+        return $copy->listing_updated_at->equalTo($deliveredAt)
+            && ($copy->tombstoned_at !== null) === (($item['tombstone'] ?? false) === true);
+    }
+
+    /**
+     * Whether the scheduled poll should run now. Failed attempts back
+     * off exponentially, capped at 24 hours; a partner this node holds
+     * a push subscription with is polled once a day to reconcile (API-11
+     * — a subscription never replaces updated_since), since its changes
+     * arrive at the inbox in between. Manual and forced syncs bypass
+     * this entirely.
      *
      * // federation-protocol.md §Health and Failure Handling
+     * // api-design.md §Subscriptions
      */
     public function isDue(FederationPartner $partner): bool
     {
-        if ($partner->consecutive_failures === 0 || $partner->last_attempted_at === null) {
-            return true;
+        if ($partner->consecutive_failures > 0 && $partner->last_attempted_at !== null) {
+            $delaySeconds = min(3600 * (2 ** ($partner->consecutive_failures - 1)), 86400);
+
+            if (! $partner->last_attempted_at->addSeconds($delaySeconds)->isPast()) {
+                return false;
+            }
         }
 
-        $delaySeconds = min(3600 * (2 ** ($partner->consecutive_failures - 1)), 86400);
+        if ($partner->isPushSubscribed() && $partner->last_ok_at !== null) {
+            return $partner->last_ok_at
+                ->addHours(self::RECONCILIATION_INTERVAL_HOURS)
+                ->subMinutes(self::RECONCILIATION_TOLERANCE_MINUTES)
+                ->isPast();
+        }
 
-        return $partner->last_attempted_at->addSeconds($delaySeconds)->isPast();
+        return true;
     }
 
     private function pullAllPages(FederationPartner $partner): SyncResult

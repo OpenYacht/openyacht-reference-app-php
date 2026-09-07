@@ -80,6 +80,32 @@ class ListingSerializer
     }
 
     /**
+     * What one partner's feed serves for one listing — the single
+     * decision the polled feed and the push deliveries share, so a
+     * subscribed partner receives exactly what its next poll would have
+     * (API-10). A listing that became invisible is a tombstone stamped at
+     * the transition — indistinguishable from a real withdrawal (API-3);
+     * an ended listing is a tombstone with its real status; anything else
+     * is the gated payload.
+     *
+     * @return array<string, mixed>
+     */
+    public function feedItem(SaleYacht|CharterYacht $yacht, FederationPartner $partner, bool $visibleNow, CarbonInterface $effectiveUpdatedAt): array
+    {
+        if (! $visibleNow) {
+            return $this->tombstone(
+                $yacht,
+                $yacht->status->isTerminal() ? null : ListingStatus::Withdrawn,
+                $effectiveUpdatedAt,
+            );
+        }
+
+        return $yacht->status->isTerminal()
+            ? $this->tombstone($yacht)
+            : $this->serialize($yacht, $partner);
+    }
+
+    /**
      * The tombstone form: served in updated_since results for every
      * listing that became invisible to the requesting partner (API-3).
      * An unshared listing tombstones as withdrawn at the transition time —

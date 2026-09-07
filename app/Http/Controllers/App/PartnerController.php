@@ -20,6 +20,8 @@ use App\Services\Federation\CategoryVocabulary;
 use App\Services\Federation\InvalidWellKnownDocument;
 use App\Services\Federation\PartnerService;
 use App\Services\Federation\SharingService;
+use App\Services\Federation\SubscriptionClient;
+use App\Services\Federation\SubscriptionFailed;
 use App\Services\Federation\SyncService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -111,6 +113,15 @@ class PartnerController extends Controller
                 'requested_at' => $partner->requested_at?->diffForHumans(),
                 'request_message' => $partner->request_message,
                 'request_contact_email' => $partner->request_contact_email,
+                // Push subscriptions, both directions (api-design.md
+                // §Subscriptions): ours with them (their changes reach
+                // the inbox), and theirs with us (the callback we
+                // deliver to).
+                'push_subscribed_at' => $partner->push_subscribed_at?->diffForHumans(),
+                'push_callback_url' => $partner->push_callback_url,
+                'push_callback_registered_at' => $partner->push_callback_registered_at?->diffForHumans(),
+                'push_last_delivered_at' => $partner->push_last_delivered_at?->diffForHumans(),
+                'push_last_failed_at' => $partner->push_last_failed_at?->diffForHumans(),
                 // null means every group granted (the pre-grants default).
                 'field_groups' => $partner->field_groups,
                 'acceptance_policy' => $partner->acceptance_policy->value,
@@ -515,6 +526,47 @@ class PartnerController extends Controller
             'message' => $partner->pinned_key_id !== $previousPinnedKeyId
                 ? __('federation.key_repinned', ['domain' => $partner->domain, 'key_id' => $partner->pinned_key_id])
                 : __('federation.keys_refreshed', ['domain' => $partner->domain]),
+        ]);
+
+        return back();
+    }
+
+    /**
+     * Subscribe to the partner's pushes (API-11): after a capability
+     * check, a signed request registers this node's inbox as its
+     * callback. Polling continues daily as reconciliation.
+     */
+    public function subscribe(FederationPartner $partner, SubscriptionClient $subscriptions): RedirectResponse
+    {
+        Gate::authorize(Permission::ManageFederation->value);
+
+        try {
+            $subscriptions->subscribe($partner);
+        } catch (SubscriptionFailed $exception) {
+            throw ValidationException::withMessages(['partner' => $exception->getMessage()]);
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('federation.subscription.subscribed', ['domain' => $partner->domain]),
+        ]);
+
+        return back();
+    }
+
+    public function unsubscribe(FederationPartner $partner, SubscriptionClient $subscriptions): RedirectResponse
+    {
+        Gate::authorize(Permission::ManageFederation->value);
+
+        try {
+            $subscriptions->unsubscribe($partner);
+        } catch (SubscriptionFailed $exception) {
+            throw ValidationException::withMessages(['partner' => $exception->getMessage()]);
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('federation.subscription.unsubscribed', ['domain' => $partner->domain]),
         ]);
 
         return back();

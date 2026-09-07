@@ -5,8 +5,10 @@ Before planning or editing, find the row whose globs match the file's path and r
 | Applies to                                                             | Rule file                        |
 | ---------------------------------------------------------------------- | -------------------------------- |
 | app/**/*.php                                                           | .ai/rules/app.md                 |
+| app/Models/Concerns/FederatedListing.php                               | .ai/rules/concerns.md            |
 | app/Http/Controllers/App/**                                            | .ai/rules/controllers-app.md     |
 | resources/css/**                                                       | .ai/rules/css.md                 |
+| tests/Feature/**                                                       | .ai/rules/feature.md             |
 | app/Http/Controllers/Federation/**                                     | .ai/rules/federation.md          |
 | *_/_                                                                   | .ai/rules/general.md             |
 | resources/js/**                                                        | .ai/rules/js.md                  |

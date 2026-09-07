@@ -37,6 +37,15 @@ return [
         'no_error_code' => 'no error code',
     ],
 
+    'subscription' => [
+        'subscribed' => 'Subscribed to pushes from :domain — its changes now arrive as they happen, with a daily poll to reconcile.',
+        'unsubscribed' => 'Unsubscribed from pushes from :domain — back to hourly polling.',
+        'partner_not_verified' => 'Approve :domain first — pushes are only accepted from verified partners.',
+        'unsupported' => ':domain does not advertise push subscriptions; it will keep being polled.',
+        'unreachable' => 'Could not reach :domain (:reason).',
+        'unexpected_answer' => ':domain answered HTTP :status (:code).',
+    ],
+
     'audiences' => [
         'everyone' => 'Everyone',
         'selected' => 'Selected partners',

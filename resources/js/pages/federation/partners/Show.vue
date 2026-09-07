@@ -13,7 +13,9 @@ import {
     introduce,
     refreshKeys,
     show,
+    subscribe,
     sync,
+    unsubscribe,
 } from '@/routes/partners';
 import { update as updateAcceptancePolicy } from '@/routes/partners/acceptance-policy';
 import { update as updateFieldGroups } from '@/routes/partners/field-groups';
@@ -49,6 +51,11 @@ type Partner = {
     requested_at: string | null;
     request_message: string | null;
     request_contact_email: string | null;
+    push_subscribed_at: string | null;
+    push_callback_url: string | null;
+    push_callback_registered_at: string | null;
+    push_last_delivered_at: string | null;
+    push_last_failed_at: string | null;
     field_groups: string[] | null;
     acceptance_policy: string;
     sharing_scope: string;
@@ -273,6 +280,28 @@ const act = (url: { url: string; method: string }) => {
             },
         },
     );
+};
+
+/*
+ * Push subscriptions (api-design.md §Subscriptions) run in both
+ * directions; only ours with the partner is something to act on here —
+ * theirs with us is registered by their node and shown for the record.
+ */
+const changingSubscription = ref(false);
+
+const unsubscribeFromPushes = () => {
+    changingSubscription.value = true;
+
+    router.delete(unsubscribe.url(props.partner.id), {
+        preserveScroll: true,
+        onError: (errors) => {
+            toast.add({
+                title: Object.values(errors)[0] ?? 'Action failed.',
+                color: 'error',
+            });
+        },
+        onFinish: () => (changingSubscription.value = false),
+    });
 };
 
 /*
@@ -594,6 +623,89 @@ const trustColor = (level: string) =>
                 </ul>
             </UCard>
         </div>
+
+        <UCard>
+            <template #header>
+                <div>
+                    <h3 class="font-semibold">Push subscriptions</h3>
+                    <p class="mt-0.5 text-xs text-muted">
+                        Optional on top of polling: a subscribed node is sent
+                        each change as it happens — the listing, or a tombstone
+                        — signed like any federation request, with retries for
+                        24 hours. A subscription never replaces polling; a
+                        subscribed partner is still reconciled by a daily poll.
+                    </p>
+                </div>
+            </template>
+            <div class="grid gap-6 text-sm sm:grid-cols-2">
+                <div class="space-y-2">
+                    <p class="font-medium">Their changes → this node</p>
+                    <p v-if="partner.push_subscribed_at" class="text-muted">
+                        Subscribed {{ partner.push_subscribed_at }}; pushes
+                        arrive at this node's inbox.
+                    </p>
+                    <p v-else class="text-muted">
+                        Not subscribed — this partner is polled hourly.
+                    </p>
+                    <UButton
+                        v-if="partner.push_subscribed_at"
+                        color="neutral"
+                        variant="outline"
+                        size="sm"
+                        icon="i-lucide-bell-off"
+                        label="Unsubscribe"
+                        :loading="changingSubscription"
+                        @click="unsubscribeFromPushes"
+                    />
+                    <UButton
+                        v-else-if="partner.trust_level === 'verified'"
+                        color="neutral"
+                        variant="outline"
+                        size="sm"
+                        icon="i-lucide-bell-ring"
+                        label="Subscribe"
+                        @click="act(subscribe(partner.id))"
+                    />
+                    <p v-else class="text-xs text-muted">
+                        Approve the partner first — pushes are only accepted
+                        from verified partners.
+                    </p>
+                </div>
+                <div class="space-y-2">
+                    <p class="font-medium">This node's changes → them</p>
+                    <template v-if="partner.push_callback_url">
+                        <p class="text-muted">
+                            Subscribed
+                            {{ partner.push_callback_registered_at }} at
+                        </p>
+                        <p class="font-mono text-xs break-all">
+                            {{ partner.push_callback_url }}
+                        </p>
+                        <dl class="space-y-1 text-xs text-muted">
+                            <div>
+                                <dt class="inline">Last delivered:</dt>
+                                <dd class="inline">
+                                    {{
+                                        partner.push_last_delivered_at ??
+                                        'never'
+                                    }}
+                                </dd>
+                            </div>
+                            <div v-if="partner.push_last_failed_at">
+                                <dt class="inline">Last failure:</dt>
+                                <dd class="inline text-error">
+                                    {{ partner.push_last_failed_at }}
+                                </dd>
+                            </div>
+                        </dl>
+                    </template>
+                    <p v-else class="text-muted">
+                        Not subscribed — their node registers a callback itself;
+                        this node's changes reach them on their polls.
+                    </p>
+                </div>
+            </div>
+        </UCard>
 
         <UCard>
             <template #header>

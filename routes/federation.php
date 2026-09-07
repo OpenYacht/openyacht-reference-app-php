@@ -2,8 +2,10 @@
 
 use App\Http\Controllers\Federation\CapabilitiesController;
 use App\Http\Controllers\Federation\HealthController;
+use App\Http\Controllers\Federation\InboxController;
 use App\Http\Controllers\Federation\ListingsController;
 use App\Http\Controllers\Federation\PartnersController;
+use App\Http\Controllers\Federation\SubscriptionsController;
 use App\Http\Controllers\Federation\WellKnownController;
 use App\Http\Middleware\EnsureIdentityDomain;
 use App\Http\Middleware\VerifyFederationSignature;
@@ -35,6 +37,17 @@ Route::middleware(EnsureIdentityDomain::class)->group(function (): void {
                 ->name('federation.listings.index');
             Route::get('listings/{uuid}', [ListingsController::class, 'show'])
                 ->name('federation.listings.show');
+
+            // Push subscriptions, both halves (api-design.md
+            // §Subscriptions): partners register a callback here
+            // (authority, API-10), and partners this node subscribed to
+            // deliver to the inbox (consumer, API-11).
+            Route::post('subscriptions', [SubscriptionsController::class, 'store'])
+                ->name('federation.subscriptions.store');
+            Route::delete('subscriptions', [SubscriptionsController::class, 'destroy'])
+                ->name('federation.subscriptions.destroy');
+            Route::post('inbox', InboxController::class)
+                ->name('federation.inbox');
         });
 
         // Partnership requests come, by definition, from partners not yet

@@ -20,6 +20,7 @@ This app is reference material first, installable product second. It exists so a
 - Trust-on-first-use partner establishment, signed sync (`openyacht:sync`, scheduled hourly), verbatim copies stored with provenance and never re-served
 - Curated imports: chosen copies become displayable yachts with locally generated WebP renditions (srcset widths plus a cropped hero) from the single wire image
 - Tolerant of schema drift: unknown fields ignored, unreadable values degrade to null — never an exception (see `SchemaToleranceTest`)
+- Push subscriptions, both halves (API-10/API-11): partners register one signed HTTPS callback each and receive every change their feed would report — the listing or a tombstone, derived from the same `federation_updated_at` stamp and visibility events the feed uses — as a queued signed POST with exponential backoff for 24 hours; this node subscribes to partners the same way, deduplicates inbox deliveries on `(id, updated_at)`, and still reconciles subscribed partners with a daily poll
 - Node-directory discovery (FP-16): a directory admin page with the vendored advisory phonebook (canonical-URL-only refresh, searchable, add-as-partner through the exact same TOFU path as a hand-typed domain) and this node's own listing consent — findability status plus the signed list/delist/amend requests (also via `openyacht:listing-token`)
 
 **Application shell**
@@ -30,11 +31,7 @@ This app is reference material first, installable product second. It exists so a
 
 ## Not yet implemented
 
-The optional protocol features this node's capabilities endpoint honestly advertises as `false`:
-
-- **Subscriptions (push)** — signed webhook delivery of changes (`POST /openyacht/v1/subscriptions`). Polling `updated_since` is the mandatory baseline and is fully implemented; push is the optional layer on top.
-
-Also pending: an import connector for an incumbent feed, an installation wizard, and signed URLs for the `media_original` field group.
+Pending: an import connector for an incumbent feed, an installation wizard, and signed URLs for the `media_original` field group.
 
 ## Requirements
 
