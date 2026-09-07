@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Federation;
 
 use App\Http\Controllers\Controller;
 use App\Models\FederationPartner;
+use App\Services\Federation\FederationNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -21,7 +22,7 @@ use Illuminate\Http\Request;
  */
 class PartnersController extends Controller
 {
-    public function request(Request $request): JsonResponse
+    public function request(Request $request, FederationNotifier $notifier): JsonResponse
     {
         /** @var FederationPartner $partner */
         $partner = $request->attributes->get('openyacht_partner');
@@ -44,6 +45,14 @@ class PartnersController extends Controller
             ])
             ->event('partner_request_received')
             ->log("Partnership requested by {$partner->domain}");
+
+        // A sender the middleware registered just now already rides the
+        // queued first-contact mail, which re-fetches this row and so
+        // carries the message. A partner known before this request gets
+        // its own mail — otherwise the request would be invisible.
+        if (! $partner->wasRecentlyCreated) {
+            $notifier->partnershipRequested($partner);
+        }
 
         return response()->json([
             'status' => 'received',

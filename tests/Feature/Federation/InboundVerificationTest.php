@@ -6,6 +6,7 @@ use App\Models\FederationPartner;
 use App\Models\SaleYacht;
 use App\Models\User;
 use App\Notifications\PartnerFirstContact;
+use App\Notifications\PartnershipRequested;
 use App\Services\Federation\PartnerService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Http;
@@ -267,7 +268,11 @@ function senderPartnershipRequest(object $test, string $body)
     );
 }
 
-test('a provisional partner can request partnership, and its message and contact are stored for the approver', function () {
+test('a known partner can request partnership: its message and contact are stored and mailed to the approvers', function () {
+    Notification::fake();
+    $this->seed(RoleSeeder::class);
+    $subscribed = tap(User::factory()->create(), fn (User $user) => $user->assignRole(Role::SuperAdmin));
+    $unsubscribed = User::factory()->create();
     $partner = FederationPartner::factory()->create([
         'domain' => SENDER,
         'keys_json' => senderWellKnown($this->keypair)['keys'],
@@ -282,6 +287,10 @@ test('a provisional partner can request partnership, and its message and contact
         ->and($partner->request_contact_email)->toBe('broker@sender.example')
         ->and($partner->requested_at)->not->toBeNull()
         ->and(Activity::query()->where('event', 'partner_request_received')->exists())->toBeTrue();
+
+    Notification::assertSentTo($subscribed, PartnershipRequested::class, fn (PartnershipRequested $notification): bool => $notification->partner->is($partner));
+    Notification::assertNotSentTo($unsubscribed, PartnershipRequested::class);
+    Notification::assertNotSentTo($subscribed, PartnerFirstContact::class);
 })->group('FP-13');
 
 test('a partnership request is recorded even without a message or contact', function () {
@@ -317,6 +326,8 @@ test('a first-contact partnership request registers the sender and stores its me
         ->and($partner->request_contact_email)->toBe('broker@sender.example');
 
     // The first-contact mail is queued from the middleware and re-fetches
-    // the partner when it drains, so the stored message reaches it.
+    // the partner when it drains, so the stored message reaches it — no
+    // second mail for the same introduction.
     Notification::assertSentTo($subscribed, PartnerFirstContact::class);
+    Notification::assertNotSentTo($subscribed, PartnershipRequested::class);
 })->group('FP-13');

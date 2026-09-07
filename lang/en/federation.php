@@ -103,11 +103,16 @@ return [
 
     'notifications' => [
         'review_partner' => 'Review the partner',
+        'request_message' => 'Their message: ":message"',
+        'request_contact' => 'Contact: :email',
+        'partnership_requested' => [
+            'subject' => 'Partnership requested by :domain',
+            'intro' => 'The node :domain, already known here as a :trust_level partner, sent a partnership request.',
+            'explanation' => 'Nothing changes until a human acts: a provisional partner receives no listings until approved, and a verified one keeps receiving them.',
+        ],
         'first_contact' => [
             'subject' => 'New OpenYacht node awaiting approval: :domain',
             'intro' => 'The node :domain contacted this node for the first time and was recorded as a provisional partner (trust on first use).',
-            'message' => 'Their message: ":message"',
-            'contact' => 'Contact: :email',
             'explanation' => 'Provisional partners can deliver signed content but receive no listings until a human approves the partnership.',
         ],
         'uuid_changed' => [

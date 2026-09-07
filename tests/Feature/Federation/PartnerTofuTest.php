@@ -6,6 +6,7 @@ use App\Models\FederationPartner;
 use App\Models\User;
 use App\Notifications\PartnerFirstContact;
 use App\Notifications\PartnerNodeUuidChanged;
+use App\Notifications\PartnershipRequested;
 use App\Services\Federation\InvalidWellKnownDocument;
 use App\Services\Federation\PartnerService;
 use Database\Seeders\RoleSeeder;
@@ -279,7 +280,7 @@ test('the notification mails render the partner domain and a review link', funct
     }
 })->group('FP-11', 'FP-13');
 
-test('the first-contact mail carries the partnership request message and contact when the sender gave them', function () {
+test('the first-contact and partnership-requested mails carry the request message and contact when the sender gave them', function () {
     $partner = FederationPartner::factory()->create([
         'domain' => 'openyacht.partner.example',
         'request_message' => 'We list in Palm Beach and would like to share.',
@@ -287,10 +288,15 @@ test('the first-contact mail carries the partnership request message and contact
         'requested_at' => now(),
     ]);
 
-    $lines = implode(' ', (new PartnerFirstContact($partner))->toMail(User::factory()->make())->introLines);
+    foreach ([new PartnerFirstContact($partner), new PartnershipRequested($partner)] as $notification) {
+        $mail = $notification->toMail(User::factory()->make());
+        $lines = implode(' ', $mail->introLines);
 
-    expect($lines)->toContain('We list in Palm Beach and would like to share.')
-        ->and($lines)->toContain('broker@partner.example');
+        expect($mail->subject)->toContain('openyacht.partner.example')
+            ->and($mail->actionUrl)->toBe(route('partners.show', $partner))
+            ->and($lines)->toContain('We list in Palm Beach and would like to share.')
+            ->and($lines)->toContain('broker@partner.example');
+    }
 
     $silent = FederationPartner::factory()->create();
     $silentLines = implode(' ', (new PartnerFirstContact($silent))->toMail(User::factory()->make())->introLines);

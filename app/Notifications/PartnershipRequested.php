@@ -9,18 +9,16 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * An unknown node introduced itself and was recorded as a provisional
- * partner (trust on first use). A provisional partner nobody notices
- * means nobody federating — someone has to approve or block it (FP-13).
+ * A partner this node already knows sent a partnership request — one
+ * that contacted us earlier, or one an operator added here that is now
+ * introducing itself back. First contact rides the first-contact mail;
+ * this one exists so a request from a known partner is not invisible,
+ * since it is the message and contact the approving human decides on
+ * (FP-13).
  *
- * Queued, and the partner is re-fetched when the queue drains, so a
- * request message stored by the partners/request endpoint after the
- * middleware fired this is in the mail. With a sync queue the mail goes
- * out before the endpoint runs and the message is simply absent.
- *
- * // federation-protocol.md §Identity and Trust Model
+ * // federation-protocol.md §Partner Lifecycle
  */
-class PartnerFirstContact extends Notification implements ShouldQueue
+class PartnershipRequested extends Notification implements ShouldQueue
 {
     use Queueable;
 
@@ -37,8 +35,11 @@ class PartnerFirstContact extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $mail = (new MailMessage)
-            ->subject(__('federation.notifications.first_contact.subject', ['domain' => $this->partner->domain]))
-            ->line(__('federation.notifications.first_contact.intro', ['domain' => $this->partner->domain]));
+            ->subject(__('federation.notifications.partnership_requested.subject', ['domain' => $this->partner->domain]))
+            ->line(__('federation.notifications.partnership_requested.intro', [
+                'domain' => $this->partner->domain,
+                'trust_level' => strtolower($this->partner->trust_level->label()),
+            ]));
 
         if ($this->partner->request_message !== null) {
             $mail->line(__('federation.notifications.request_message', ['message' => $this->partner->request_message]));
@@ -49,7 +50,7 @@ class PartnerFirstContact extends Notification implements ShouldQueue
         }
 
         return $mail
-            ->line(__('federation.notifications.first_contact.explanation'))
+            ->line(__('federation.notifications.partnership_requested.explanation'))
             ->action(__('federation.notifications.review_partner'), route('partners.show', $this->partner));
     }
 }
