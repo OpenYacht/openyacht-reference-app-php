@@ -34,6 +34,21 @@ class SyncedListingController extends Controller
      */
     private const int PER_PAGE = 24;
 
+    /**
+     * The import-state facet, first entry the default: the synced screens
+     * exist to show what is on offer that has not been imported yet.
+     *
+     * @var list<string>
+     */
+    private const array IMPORT_STATES = ['pending', 'imported', 'all'];
+
+    private function importState(Request $request): string
+    {
+        $state = trim((string) $request->query('imported'));
+
+        return in_array($state, self::IMPORT_STATES, true) ? $state : self::IMPORT_STATES[0];
+    }
+
     public function index(Request $request, CategoryVocabulary $categories): Response
     {
         return $this->typedIndex($request, $categories, 'sale');
@@ -49,6 +64,7 @@ class SyncedListingController extends Controller
         Gate::authorize('viewAny', ListingCopy::class);
 
         $filters = $this->listingFilters($request);
+        $importState = $this->importState($request);
 
         // A partner whose import type preference excludes this type stays
         // out of the review queue entirely — the copy is still stored
@@ -63,6 +79,11 @@ class SyncedListingController extends Controller
         return Inertia::render('federation/listings/Index', [
             'listingType' => $type,
             'filters' => $filters,
+            'importState' => $importState,
+            'importStates' => collect(self::IMPORT_STATES)->map(fn (string $state): array => [
+                'value' => $state,
+                'label' => __('listings.import_states.'.$state),
+            ]),
             'categories' => $categories->all(),
             'partners' => $this->partnerOptions(
                 $acceptsType(FederationPartner::query())
@@ -72,6 +93,11 @@ class SyncedListingController extends Controller
                 ->with(['partner:id,domain,node_name,last_ok_at,created_at', 'import:id,listing_copy_id'])
                 ->where('type', $type)
                 ->whereHas('partner', $acceptsType)
+                // The screen is the review queue: what is on offer and not
+                // yet taken. Imported copies are hidden by default so they
+                // never blur into the offer; the filter brings them back.
+                ->when($importState === 'pending', fn ($query) => $query->whereDoesntHave('import'))
+                ->when($importState === 'imported', fn ($query) => $query->whereHas('import'))
                 ->when($filters['partner'] !== '', fn ($query) => $query
                     ->where('federation_partner_id', (int) $filters['partner']))
                 ->when($filters['q'] !== '', fn ($query) => $query->where(

@@ -309,6 +309,32 @@ test('sale and charter copies are never mixed in one synced list', function () {
         ->and($names('synced-charter-listings.index'))->toBe(['CHARTER COPY']);
 });
 
+test('the synced list shows only copies not yet imported by default, with a filter for the rest', function () {
+    $this->seed(RoleSeeder::class);
+
+    $partner = FederationPartner::factory()->verified()->create();
+    ListingCopy::factory()->for($partner, 'partner')->create(['name' => 'ON OFFER']);
+    $taken = ListingCopy::factory()->for($partner, 'partner')->create(['name' => 'ALREADY IMPORTED']);
+    ImportedYacht::factory()->create(['listing_copy_id' => $taken->id]);
+
+    $admin = tap(User::factory()->create(), fn (User $user) => $user->assignRole(Role::Admin));
+
+    $props = fn (array $params = []): array => $this->actingAs($admin)
+        ->get(route('synced-listings.index', $params))
+        ->assertOk()
+        ->original->getData()['page']['props'];
+
+    $names = fn (array $props): array => collect($props['copies']['data'])->pluck('name')->sort()->values()->all();
+
+    // The screen is the review queue: what is on offer and not taken.
+    expect($names($props()))->toBe(['ON OFFER'])
+        ->and($props()['importState'])->toBe('pending')
+        ->and($names($props(['imported' => 'imported'])))->toBe(['ALREADY IMPORTED'])
+        ->and($names($props(['imported' => 'all'])))->toBe(['ALREADY IMPORTED', 'ON OFFER'])
+        // An unknown value falls back to the default rather than erroring.
+        ->and($names($props(['imported' => 'bogus'])))->toBe(['ON OFFER']);
+});
+
 test('the synced list pages by 24 and carries the filters across pages', function () {
     $this->seed(RoleSeeder::class);
 

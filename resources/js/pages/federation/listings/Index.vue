@@ -45,8 +45,18 @@ const props = defineProps<{
     filters: ListingFilters;
     categories: { slug: string; name: string }[];
     partners: PartnerOption[];
+    importState: string;
+    importStates: { value: string; label: string }[];
     copies: Paginated<Copy>;
 }>();
+
+// The default view is the offer not yet taken, so an empty grid there
+// usually means everything has been imported, not that nothing synced.
+const empty = computed(() =>
+    props.importState === 'pending'
+        ? 'Nothing waiting to be imported. Everything partners have shared is already imported — switch the import filter to see it — or no approved partner has synced yet.'
+        : 'Nothing synced found. Once a partner is approved and synced, their shared listings appear here.',
+);
 
 const title = computed(() => partnerListingsLabel(props.listingType));
 
@@ -118,9 +128,11 @@ const badges = (copy: Copy): ListingBadge[] => [
         :filters="filters"
         :categories="categories"
         :partners="partners"
+        :import-states="importStates"
+        :import-state="importState"
         :has-results="copies.data.length > 0"
         :paginator="copies"
-        empty="Nothing synced found. Once a partner is approved and synced, their shared listings appear here."
+        :empty="empty"
     >
         <template #tabs>
             <PartnerListingsTabs :listing-type="listingType" stage="synced" />

@@ -22,6 +22,8 @@ defineProps<{
     builders?: string[];
     statuses?: { value: string; label: string }[];
     partners?: PartnerOption[];
+    importStates?: { value: string; label: string }[];
+    importState?: string;
     showYearRange?: boolean;
     showPowerSail?: boolean;
     hasResults: boolean;
@@ -45,6 +47,8 @@ defineProps<{
             :builders="builders"
             :statuses="statuses"
             :partners="partners"
+            :import-states="importStates"
+            :import-state="importState"
             :show-year-range="showYearRange"
             :show-power-sail="showPowerSail"
             :placeholder="searchPlaceholder"

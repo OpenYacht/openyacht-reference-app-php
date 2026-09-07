@@ -37,6 +37,11 @@ const props = defineProps<{
     builders?: string[];
     statuses?: { value: string; label: string }[];
     partners?: PartnerOption[];
+    // Import-state facet of the synced screens. The first option is the
+    // default and stays out of the query string, so a plain URL always
+    // opens on what has not been imported yet.
+    importStates?: { value: string; label: string }[];
+    importState?: string;
     showYearRange?: boolean;
     showPowerSail?: boolean;
     // Extra params carried through every visit unchanged — e.g. the
@@ -57,6 +62,7 @@ const state = reactive({
     power_sail: props.initial.power_sail || 'all',
     status: props.initial.status || 'all',
     partner: props.initial.partner || 'all',
+    imported: props.importState ?? props.importStates?.[0]?.value ?? '',
 });
 
 const categoryItems = [
@@ -151,6 +157,13 @@ watch(state, () => {
             params.partner = state.partner;
         }
 
+        if (
+            props.importStates &&
+            state.imported !== props.importStates[0].value
+        ) {
+            params.imported = state.imported;
+        }
+
         // No page param: a changed filter always restarts at page one.
         router.get(window.location.pathname, params, {
             preserveState: true,
@@ -195,6 +208,14 @@ onBeforeUnmount(() => {
             value-key="value"
             class="w-full lg:w-52"
             aria-label="Partner"
+        />
+        <USelectMenu
+            v-if="importStates"
+            v-model="state.imported"
+            :items="importStates"
+            value-key="value"
+            class="w-full lg:w-44"
+            aria-label="Import state"
         />
         <USelectMenu
             v-if="builders"
