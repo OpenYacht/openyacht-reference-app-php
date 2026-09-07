@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Form, Head, Link } from '@inertiajs/vue3';
+import { Form, Head, Link, usePage } from '@inertiajs/vue3';
 import Heading from '@/components/Heading.vue';
 import PartnerGroupsCard from '@/components/PartnerGroupsCard.vue';
 import { index as directoryIndex } from '@/routes/node-directory';
@@ -42,6 +42,10 @@ defineOptions({
     },
 });
 
+// The contact the partner's administrators can reply to; the acting
+// user is the default, editable per request.
+const defaultContactEmail = usePage().props.auth.user.email;
+
 const trustColor = (level: string) =>
     ({ verified: 'success', provisional: 'warning', blocked: 'error' })[
         level
@@ -57,36 +61,74 @@ const trustColor = (level: string) =>
             description="Brokerages this node exchanges listings with"
         />
 
-        <div class="flex max-w-2xl items-start gap-2">
+        <UCard>
+            <template #header>
+                <div>
+                    <h3 class="font-semibold">Add a partner</h3>
+                    <p class="mt-0.5 text-xs text-muted">
+                        The node fetches the partner's discovery document,
+                        stores it for your approval, and sends a signed
+                        partnership request so it appears on their side too.
+                        Your message and contact email travel with the request.
+                    </p>
+                </div>
+            </template>
             <Form
                 v-bind="store.form()"
                 reset-on-success
                 v-slot="{ errors, processing }"
-                class="flex flex-1 items-start gap-2"
+                class="space-y-4"
             >
-                <UFormField class="flex-1" :error="errors.domain">
-                    <UInput
-                        name="domain"
-                        placeholder="openyacht.partner-brokerage.com"
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <UFormField
+                        label="Partner domain"
+                        :error="errors.domain"
+                        required
+                    >
+                        <UInput
+                            name="domain"
+                            placeholder="openyacht.partner-brokerage.com"
+                            class="w-full"
+                        />
+                    </UFormField>
+                    <UFormField
+                        label="Contact email"
+                        :error="errors.contact_email"
+                    >
+                        <UInput
+                            name="contact_email"
+                            type="email"
+                            :default-value="defaultContactEmail"
+                            class="w-full"
+                        />
+                    </UFormField>
+                </div>
+                <UFormField label="Message" :error="errors.message">
+                    <UTextarea
+                        name="message"
                         class="w-full"
-                        aria-label="Partner domain"
+                        :rows="2"
+                        autoresize
+                        placeholder="Who you are and why you would like to federate — optional; a standard introduction is sent if left blank."
                     />
                 </UFormField>
-                <UButton
-                    type="submit"
-                    :loading="processing"
-                    icon="i-lucide-plus"
-                    label="Add partner"
-                />
+                <div class="flex flex-wrap justify-end gap-2">
+                    <UButton
+                        :to="directoryIndex.url()"
+                        icon="i-lucide-book-open"
+                        variant="outline"
+                        color="neutral"
+                        label="Find partners"
+                    />
+                    <UButton
+                        type="submit"
+                        :loading="processing"
+                        icon="i-lucide-send"
+                        label="Add and send request"
+                    />
+                </div>
             </Form>
-            <UButton
-                :to="directoryIndex.url()"
-                icon="i-lucide-book-open"
-                variant="outline"
-                color="neutral"
-                label="Find partners"
-            />
-        </div>
+        </UCard>
 
         <div
             v-if="partners.length"
@@ -141,7 +183,8 @@ const trustColor = (level: string) =>
 
         <p v-else class="text-sm text-muted">
             No partners yet. Add one by its identity domain — the node will
-            fetch its discovery document and store it for your approval.
+            fetch its discovery document, store it for your approval, and
+            introduce itself to the partner.
         </p>
 
         <PartnerGroupsCard

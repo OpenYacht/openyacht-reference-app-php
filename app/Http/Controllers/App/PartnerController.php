@@ -7,7 +7,9 @@ use App\Enums\FieldGroup;
 use App\Enums\ImportTypes;
 use App\Enums\Permission;
 use App\Enums\SharingScope;
+use App\Enums\TrustLevel;
 use App\Http\Controllers\Concerns\FiltersListings;
+use App\Http\Controllers\Concerns\FlashesIntroduction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AddPartnerRequest;
 use App\Models\CharterYacht;
@@ -34,6 +36,7 @@ use Throwable;
 class PartnerController extends Controller
 {
     use FiltersListings;
+    use FlashesIntroduction;
 
     public function index(): Response
     {
@@ -102,6 +105,12 @@ class PartnerController extends Controller
                 'is_removable' => $partner->isRemovable(),
                 'is_stale' => $partner->isStale(),
                 'is_hidden' => $partner->isHidden(),
+                // Our request to them, and theirs to us (§Partner Lifecycle
+                // step 1) — the "who are you and why" beside approve/block.
+                'request_sent_at' => $partner->request_sent_at?->diffForHumans(),
+                'requested_at' => $partner->requested_at?->diffForHumans(),
+                'request_message' => $partner->request_message,
+                'request_contact_email' => $partner->request_contact_email,
                 // null means every group granted (the pre-grants default).
                 'field_groups' => $partner->field_groups,
                 'acceptance_policy' => $partner->acceptance_policy->value,
@@ -389,6 +398,13 @@ class PartnerController extends Controller
         return back();
     }
 
+    /**
+     * The hand-typed add: fetch the node's keys from its own domain, store
+     * it provisional, then introduce this node to it with a signed
+     * partnership request so it appears on their side for approval. The
+     * flash reports the introduction — "added" alone would hide whether
+     * the other side has anything to approve.
+     */
     public function store(AddPartnerRequest $request, PartnerService $partners): RedirectResponse
     {
         try {
@@ -397,12 +413,39 @@ class PartnerController extends Controller
             throw ValidationException::withMessages(['domain' => $exception->getMessage()]);
         }
 
-        Inertia::flash('toast', [
-            'type' => 'success',
-            'message' => __('federation.partner_added', ['domain' => $partner->domain]),
-        ]);
+        $this->flashIntroduction($partners->introduce(
+            $partner,
+            $request->validated('message'),
+            $request->validated('contact_email') ?? $request->user()?->email,
+        ));
 
         return to_route('partners.show', $partner);
+    }
+
+    /**
+     * Re-send the partnership request — after a failed first attempt, or
+     * to a partner that contacted us first and has never heard from us.
+     */
+    public function introduce(Request $request, FederationPartner $partner, PartnerService $partners): RedirectResponse
+    {
+        Gate::authorize(Permission::ManageFederation->value);
+
+        if ($partner->trust_level === TrustLevel::Blocked) {
+            throw ValidationException::withMessages(['partner' => __('federation.partner_blocked_locally', ['domain' => $partner->domain])]);
+        }
+
+        $validated = $request->validate([
+            'message' => ['nullable', 'string', 'max:1000'],
+            'contact_email' => ['nullable', 'email', 'max:255'],
+        ]);
+
+        $this->flashIntroduction($partners->introduce(
+            $partner,
+            $validated['message'] ?? null,
+            $validated['contact_email'] ?? $request->user()?->email,
+        ));
+
+        return back();
     }
 
     public function approve(Request $request, FederationPartner $partner, PartnerService $partners): RedirectResponse

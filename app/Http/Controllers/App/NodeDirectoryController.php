@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\App;
 
 use App\Enums\Permission;
+use App\Http\Controllers\Concerns\FlashesIntroduction;
 use App\Http\Controllers\Controller;
 use App\Models\FederationPartner;
 use App\Services\Federation\InvalidWellKnownDocument;
@@ -28,6 +29,8 @@ use RuntimeException;
  */
 class NodeDirectoryController extends Controller
 {
+    use FlashesIntroduction;
+
     public function index(NodeDirectory $directory, NodeDirectoryIndex $index): Response
     {
         Gate::authorize(Permission::ManageFederation->value);
@@ -114,10 +117,9 @@ class NodeDirectoryController extends Controller
             throw ValidationException::withMessages(['domain' => $exception->getMessage()]);
         }
 
-        Inertia::flash('toast', [
-            'type' => 'success',
-            'message' => __('federation.partner_added', ['domain' => $partner->domain]),
-        ]);
+        // A directory entry conveys existence only; the signed request is
+        // what puts this node in front of their administrators.
+        $this->flashIntroduction($partners->introduce($partner, null, $request->user()?->email));
 
         return back();
     }

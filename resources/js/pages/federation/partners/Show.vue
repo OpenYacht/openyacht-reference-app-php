@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, setLayoutProps } from '@inertiajs/vue3';
+import { Head, router, setLayoutProps, usePage } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import ListingFilterBar from '@/components/ListingFilterBar.vue';
 import type { ListingFilters } from '@/components/ListingFilterBar.vue';
@@ -10,6 +10,7 @@ import {
     block,
     destroy,
     index,
+    introduce,
     refreshKeys,
     show,
     sync,
@@ -44,6 +45,10 @@ type Partner = {
     is_removable: boolean;
     is_stale: boolean;
     is_hidden: boolean;
+    request_sent_at: string | null;
+    requested_at: string | null;
+    request_message: string | null;
+    request_contact_email: string | null;
     field_groups: string[] | null;
     acceptance_policy: string;
     sharing_scope: string;
@@ -295,6 +300,36 @@ const remove = () => {
     });
 };
 
+/*
+ * The signed partnership request (§Partner Lifecycle step 1) — sent on
+ * add, re-sent from here after a failed attempt or to a partner that
+ * contacted us first and has never heard from us.
+ */
+const showIntroduceModal = ref(false);
+const introducing = ref(false);
+const introduction = ref({
+    message: '',
+    contact_email: usePage().props.auth.user.email,
+});
+
+const sendIntroduction = () => {
+    introducing.value = true;
+
+    router.post(introduce.url(props.partner.id), introduction.value, {
+        preserveScroll: true,
+        onError: (errors) => {
+            toast.add({
+                title: Object.values(errors)[0] ?? 'Action failed.',
+                color: 'error',
+            });
+        },
+        onFinish: () => {
+            introducing.value = false;
+            showIntroduceModal.value = false;
+        },
+    });
+};
+
 const trustColor = (level: string) =>
     ({ verified: 'success', provisional: 'warning', blocked: 'error' })[
         level
@@ -363,6 +398,18 @@ const trustColor = (level: string) =>
                     @click="act(block(partner.id))"
                 />
                 <UButton
+                    v-if="partner.trust_level !== 'blocked'"
+                    color="neutral"
+                    variant="outline"
+                    icon="i-lucide-send"
+                    :label="
+                        partner.request_sent_at
+                            ? 'Resend request'
+                            : 'Send partnership request'
+                    "
+                    @click="showIntroduceModal = true"
+                />
+                <UButton
                     color="neutral"
                     variant="outline"
                     icon="i-lucide-key-round"
@@ -386,6 +433,76 @@ const trustColor = (level: string) =>
                 />
             </div>
         </div>
+
+        <!-- Their request to us: the "who are you and why" the trust
+             model puts in front of the person approving. -->
+        <div
+            v-if="partner.requested_at"
+            class="rounded-lg border border-info/40 bg-info/5 p-4"
+        >
+            <p class="text-sm font-medium">
+                Partnership requested {{ partner.requested_at }}
+            </p>
+            <blockquote
+                v-if="partner.request_message"
+                class="mt-1 text-sm whitespace-pre-line"
+            >
+                “{{ partner.request_message }}”
+            </blockquote>
+            <p
+                v-if="partner.request_contact_email"
+                class="mt-1 text-xs text-muted"
+            >
+                Contact:
+                <a
+                    :href="`mailto:${partner.request_contact_email}`"
+                    class="underline"
+                    >{{ partner.request_contact_email }}</a
+                >
+            </p>
+        </div>
+
+        <UModal
+            v-model:open="showIntroduceModal"
+            title="Send a partnership request"
+            :description="`A signed request introduces this node to ${partner.domain}: it appears there as a provisional partner with your message and contact, until their administrators approve it.`"
+        >
+            <template #body>
+                <form class="space-y-4" @submit.prevent="sendIntroduction">
+                    <UFormField label="Contact email">
+                        <UInput
+                            v-model="introduction.contact_email"
+                            type="email"
+                            class="w-full"
+                        />
+                    </UFormField>
+                    <UFormField label="Message">
+                        <UTextarea
+                            v-model="introduction.message"
+                            class="w-full"
+                            :rows="3"
+                            autoresize
+                            placeholder="Optional — a standard introduction is sent if left blank."
+                        />
+                    </UFormField>
+                    <div class="flex justify-end gap-2">
+                        <UButton
+                            type="button"
+                            color="neutral"
+                            variant="soft"
+                            label="Cancel"
+                            @click="showIntroduceModal = false"
+                        />
+                        <UButton
+                            type="submit"
+                            :loading="introducing"
+                            icon="i-lucide-send"
+                            label="Send request"
+                        />
+                    </div>
+                </form>
+            </template>
+        </UModal>
 
         <UModal
             v-model:open="showRemoveModal"
@@ -433,6 +550,10 @@ const trustColor = (level: string) =>
                     <div>
                         <dt class="text-muted">Last synced</dt>
                         <dd>{{ partner.last_synced_at ?? 'never' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-muted">Partnership request sent</dt>
+                        <dd>{{ partner.request_sent_at ?? 'never' }}</dd>
                     </div>
                     <div v-if="partner.consecutive_failures > 0">
                         <dt class="text-muted">Consecutive failures</dt>

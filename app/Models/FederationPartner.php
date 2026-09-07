@@ -42,6 +42,10 @@ use Illuminate\Support\Carbon;
  * @property int $consecutive_failures
  * @property Carbon|null $last_synced_at
  * @property Carbon|null $last_attempted_at
+ * @property Carbon|null $request_sent_at
+ * @property string|null $request_message
+ * @property string|null $request_contact_email
+ * @property Carbon|null $requested_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -50,6 +54,7 @@ use Illuminate\Support\Carbon;
     'trust_level', 'field_groups', 'approved_by_user_id', 'last_ok_at',
     'consecutive_failures', 'last_synced_at', 'last_attempted_at',
     'acceptance_policy', 'sharing_scope', 'import_types',
+    'request_sent_at', 'request_message', 'request_contact_email', 'requested_at',
 ])]
 class FederationPartner extends Model
 {
@@ -87,6 +92,8 @@ class FederationPartner extends Model
             'last_ok_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'last_attempted_at' => 'datetime',
+            'request_sent_at' => 'datetime',
+            'requested_at' => 'datetime',
         ];
     }
 

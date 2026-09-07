@@ -279,6 +279,26 @@ test('the notification mails render the partner domain and a review link', funct
     }
 })->group('FP-11', 'FP-13');
 
+test('the first-contact mail carries the partnership request message and contact when the sender gave them', function () {
+    $partner = FederationPartner::factory()->create([
+        'domain' => 'openyacht.partner.example',
+        'request_message' => 'We list in Palm Beach and would like to share.',
+        'request_contact_email' => 'broker@partner.example',
+        'requested_at' => now(),
+    ]);
+
+    $lines = implode(' ', (new PartnerFirstContact($partner))->toMail(User::factory()->make())->introLines);
+
+    expect($lines)->toContain('We list in Palm Beach and would like to share.')
+        ->and($lines)->toContain('broker@partner.example');
+
+    $silent = FederationPartner::factory()->create();
+    $silentLines = implode(' ', (new PartnerFirstContact($silent))->toMail(User::factory()->make())->introLines);
+
+    expect($silentLines)->not->toContain('Their message')
+        ->and($silentLines)->not->toContain('Contact:');
+})->group('FP-13');
+
 test('approving a partner records the approver and verified trust', function () {
     $partner = FederationPartner::factory()->create();
     $approver = User::factory()->create();

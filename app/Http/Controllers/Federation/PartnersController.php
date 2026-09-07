@@ -10,8 +10,12 @@ use Illuminate\Http\Request;
 /**
  * Inbound partnership requests. The verification middleware has already
  * authenticated the sender and stored it as a (provisional) partner —
- * this endpoint records the human-readable request for administrators to
- * review (FP-13).
+ * this endpoint records the human-readable request on the partner row,
+ * where the partner page and the first-contact mail show it to the
+ * administrator deciding whether to approve (FP-13).
+ *
+ * Deliberately lenient: neither field is required. A sender that omits
+ * both has still introduced itself; the request is recorded either way.
  *
  * // federation-protocol.md §Partner Lifecycle
  */
@@ -22,8 +26,14 @@ class PartnersController extends Controller
         /** @var FederationPartner $partner */
         $partner = $request->attributes->get('openyacht_partner');
 
-        $message = $request->string('message')->limit(1000)->value();
-        $contactEmail = $request->string('contact_email')->limit(255)->value();
+        $message = $request->string('message')->trim()->limit(1000)->value();
+        $contactEmail = $request->string('contact_email')->trim()->limit(255)->value();
+
+        $partner->update([
+            'request_message' => $message !== '' ? $message : null,
+            'request_contact_email' => $contactEmail !== '' ? $contactEmail : null,
+            'requested_at' => now(),
+        ]);
 
         activity('federation')
             ->performedOn($partner)

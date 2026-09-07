@@ -36,6 +36,11 @@ class AddPartnerRequest extends FormRequest
                 Rule::notIn([strtolower((string) config('openyacht.domain'))]),
                 'unique:federation_partners,domain',
             ],
+            // Carried in the partnership request to the partner's
+            // administrators; both are optional here and defaulted on the
+            // wire (PartnerService::introduce).
+            'message' => ['nullable', 'string', 'max:1000'],
+            'contact_email' => ['nullable', 'email', 'max:255'],
         ];
     }
 

@@ -2,15 +2,21 @@
 
 namespace App\Services\Federation;
 
+use App\Enums\FederationErrorCode;
+use App\Enums\IntroductionOutcome;
 use App\Enums\TrustLevel;
 use App\Models\FederationPartner;
 use App\Models\User;
 use App\Models\VisibilityEvent;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use InvalidArgumentException;
+use RuntimeException;
 
 /**
- * Partner lifecycle: first contact (TOFU), key refresh with reinstall
- * detection, and the human approve/block decisions.
+ * Partner lifecycle: first contact (TOFU), the outbound partnership
+ * request that introduces this node to the other side, key refresh with
+ * reinstall detection, and the human approve/block decisions.
  *
  * // federation-protocol.md §Identity and Trust Model, §Partner Lifecycle
  */
@@ -19,6 +25,7 @@ class PartnerService
     public function __construct(
         private WellKnownClient $wellKnown,
         private FederationNotifier $notifier,
+        private SignedClient $client,
     ) {}
 
     /**
@@ -64,6 +71,126 @@ class PartnerService
             ->log("Partner {$domain} added (provisional)");
 
         return $partner;
+    }
+
+    /**
+     * Introduce this node to a partner with a signed partnership request
+     * (federation-protocol.md §Partner Lifecycle step 1): their node
+     * verifies the signature, stores this node as provisional and
+     * notifies its administrators — the request is what puts a "who are
+     * you and why" in front of the person who approves it.
+     *
+     * Nodes without the partners/request endpoint answer 404/405 from
+     * their router before any signature check, so nothing is registered
+     * over there; every conformant node authenticates a signed listings
+     * read, which is why that is the fallback. The partner row is saved
+     * before the attempt, so every outcome is reported, never thrown.
+     *
+     * Both fields always go on the wire: at least one receiver rejects a
+     * body missing either as a validation error after registering the
+     * sender, which would read as a failed introduction.
+     */
+    public function introduce(FederationPartner $partner, ?string $message = null, ?string $contactEmail = null): PartnerIntroduction
+    {
+        $message = trim((string) $message) !== ''
+            ? trim((string) $message)
+            : __('federation.introduction.default_message', ['name' => config('openyacht.node_name')]);
+
+        $contactEmail = trim((string) $contactEmail) !== ''
+            ? trim((string) $contactEmail)
+            : (string) config('mail.from.address');
+
+        $introduction = $this->attempt($partner, $message, $contactEmail);
+
+        if ($introduction->outcome->reachedPartner()) {
+            $partner->update(['request_sent_at' => now()]);
+        }
+
+        activity('federation')
+            ->performedOn($partner)
+            ->withProperties([
+                'domain' => $partner->domain,
+                'outcome' => $introduction->outcome->value,
+                'message' => $message,
+                'contact_email' => $contactEmail,
+                'detail' => $introduction->message,
+            ])
+            ->event('partner_request_sent')
+            ->log("Partnership request to {$partner->domain}: {$introduction->outcome->value}");
+
+        return $introduction;
+    }
+
+    /**
+     * The wire round trip. Every failure mode short of a bug is reported
+     * as an outcome here so the caller never has to catch.
+     */
+    private function attempt(FederationPartner $partner, string $message, string $contactEmail): PartnerIntroduction
+    {
+        try {
+            $response = $this->client->post($partner, '/openyacht/v1/partners/request', [
+                'message' => $message,
+                'contact_email' => $contactEmail,
+            ]);
+
+            $probed = in_array($response->status(), [404, 405], true);
+
+            if ($probed) {
+                $response = $this->client->get($partner, '/openyacht/v1/listings?page_size=1');
+            }
+        } catch (ConnectionException $exception) {
+            return $this->introductionFailed($partner, __('federation.introduction.unreachable', [
+                'domain' => $partner->domain,
+                'reason' => $exception->getMessage(),
+            ]));
+        } catch (RuntimeException $exception) {
+            // BlockedOutboundHost (the outbound guard refused the host) or
+            // the Signer's "no active key" — both for the operator to fix.
+            return $this->introductionFailed($partner, $exception->getMessage());
+        }
+
+        return $this->interpret($partner, $response, $probed);
+    }
+
+    /**
+     * Read the partner's answer. A 2xx from the request endpoint means it
+     * was registered, and its trust_level says whether a human there
+     * still has to approve; a 2xx from the listings probe means they are
+     * already serving this node listings, which only a verified partner
+     * gets (FP-13). A 403 PARTNER_PROVISIONAL from either is "registered,
+     * awaiting a human".
+     */
+    private function interpret(FederationPartner $partner, Response $response, bool $probed): PartnerIntroduction
+    {
+        $code = data_get($response->json(), 'error.code');
+
+        if ($response->successful()) {
+            return $probed || data_get($response->json(), 'trust_level') === TrustLevel::Verified->value
+                ? new PartnerIntroduction(IntroductionOutcome::Accepted, __('federation.introduction.accepted', ['domain' => $partner->domain]))
+                : new PartnerIntroduction(IntroductionOutcome::Delivered, __('federation.introduction.delivered', ['domain' => $partner->domain]));
+        }
+
+        if ($response->status() === 403 && $code === FederationErrorCode::PartnerProvisional->value) {
+            return new PartnerIntroduction(IntroductionOutcome::Delivered, __('federation.introduction.delivered', ['domain' => $partner->domain]));
+        }
+
+        if ($response->status() === 403 && $code === FederationErrorCode::PartnerBlocked->value) {
+            return new PartnerIntroduction(IntroductionOutcome::Blocked, __('federation.introduction.blocked', ['domain' => $partner->domain]));
+        }
+
+        return $this->introductionFailed($partner, __('federation.introduction.unexpected_answer', [
+            'domain' => $partner->domain,
+            'status' => $response->status(),
+            'code' => is_string($code) ? $code : __('federation.introduction.no_error_code'),
+        ]));
+    }
+
+    private function introductionFailed(FederationPartner $partner, string $reason): PartnerIntroduction
+    {
+        return new PartnerIntroduction(IntroductionOutcome::Failed, __('federation.introduction.failed', [
+            'domain' => $partner->domain,
+            'reason' => $reason,
+        ]));
     }
 
     /**

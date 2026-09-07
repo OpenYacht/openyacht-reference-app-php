@@ -14,6 +14,7 @@ return [
     'partner_not_removable' => 'Listings have been received from :domain, so it cannot be removed — block it instead.',
     'partner_removed' => ':domain removed.',
     'partner_added' => ':domain added as a provisional partner.',
+    'partner_blocked_locally' => ':domain is blocked here — approve it before requesting a partnership.',
     'partner_approved' => ':domain approved.',
     'partner_blocked' => ':domain blocked.',
     'keys_refreshed' => 'Keys refreshed for :domain.',
@@ -24,6 +25,17 @@ return [
     'sync_completed' => ':domain synced: :created new, :updated updated, :tombstoned removed.',
 
     'attribution_default' => 'Listing courtesy of :name',
+
+    'introduction' => [
+        'default_message' => ':name would like to federate listings with you via OpenYacht.',
+        'delivered' => 'Partnership request delivered to :domain — it appears there as a provisional partner until they approve it.',
+        'accepted' => ':domain already lists this node as a verified partner.',
+        'blocked' => ':domain has blocked this node.',
+        'failed' => 'Partner :domain saved, but the partnership request was not delivered: :reason',
+        'unreachable' => 'could not reach :domain (:reason).',
+        'unexpected_answer' => ':domain answered HTTP :status (:code).',
+        'no_error_code' => 'no error code',
+    ],
 
     'audiences' => [
         'everyone' => 'Everyone',
@@ -94,6 +106,8 @@ return [
         'first_contact' => [
             'subject' => 'New OpenYacht node awaiting approval: :domain',
             'intro' => 'The node :domain contacted this node for the first time and was recorded as a provisional partner (trust on first use).',
+            'message' => 'Their message: ":message"',
+            'contact' => 'Contact: :email',
             'explanation' => 'Provisional partners can deliver signed content but receive no listings until a human approves the partnership.',
         ],
         'uuid_changed' => [

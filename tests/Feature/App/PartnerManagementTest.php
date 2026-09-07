@@ -3,13 +3,14 @@
 use App\Enums\ImportTypes;
 use App\Enums\Role;
 use App\Enums\TrustLevel;
+use App\Models\FederationKey;
 use App\Models\FederationPartner;
 use App\Models\ListingCopy;
 use App\Models\User;
 use App\Models\VisibilityEvent;
-use App\Services\Federation\KeyManager;
 use App\Services\Federation\NodeDirectoryIndex;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -19,6 +20,8 @@ use Spatie\Activitylog\Models\Activity;
 
 beforeEach(function () {
     $this->seed(RoleSeeder::class);
+    config(['openyacht.domain' => 'openyacht.this-node.example']);
+    FederationKey::factory()->create();
 });
 
 function federationActor(Role $role = Role::SuperAdmin): User
@@ -40,6 +43,7 @@ test('partner management requires the federation permission', function () {
 
 test('a partner can be added by domain through the UI', function () {
     Http::fake([
+        'openyacht.partner.example/openyacht/v1/partners/request' => Http::response(['status' => 'received', 'trust_level' => 'provisional'], 202),
         'openyacht.partner.example/.well-known/openyacht' => Http::response([
             'openyacht' => '1.0',
             'node' => ['uuid' => '018f0000-0000-7000-8000-000000000001', 'name' => 'Partner'],
@@ -52,7 +56,10 @@ test('a partner can be added by domain through the UI', function () {
         ->assertRedirect()
         ->assertSessionHasNoErrors();
 
-    expect(FederationPartner::query()->where('domain', 'openyacht.partner.example')->exists())->toBeTrue();
+    $partner = FederationPartner::query()->where('domain', 'openyacht.partner.example')->first();
+
+    expect($partner)->not->toBeNull()
+        ->and($partner->request_sent_at)->not->toBeNull();
 });
 
 test('an unreachable domain surfaces as a validation error', function () {
@@ -176,6 +183,7 @@ test('a directory entry is added as a partner through the same TOFU path', funct
                 'listed_at' => '2026-08-23',
             ]],
         ]),
+        'openyacht.partner.example/openyacht/v1/partners/request' => Http::response(['status' => 'received', 'trust_level' => 'provisional'], 202),
         'openyacht.partner.example/.well-known/openyacht' => Http::response([
             'openyacht' => '1.0',
             'node' => ['uuid' => '018f0000-0000-7000-8000-000000000001', 'name' => 'Partner'],
@@ -185,7 +193,9 @@ test('a directory entry is added as a partner through the same TOFU path', funct
 
     app(NodeDirectoryIndex::class)->refresh();
 
-    $this->actingAs(federationActor())
+    $actor = federationActor();
+
+    $this->actingAs($actor)
         ->post(route('node-directory.add-partner'), ['domain' => 'openyacht.partner.example'])
         ->assertRedirect()
         ->assertSessionHasNoErrors();
@@ -194,8 +204,14 @@ test('a directory entry is added as a partner through the same TOFU path', funct
 
     expect($partner)->not->toBeNull()
         ->and($partner->trust_level)->toBe(TrustLevel::Provisional)
-        ->and($partner->publishedKeys())->toHaveKey('5e318f8cf9cbe249');
-})->group('FP-16');
+        ->and($partner->publishedKeys())->toHaveKey('5e318f8cf9cbe249')
+        ->and($partner->request_sent_at)->not->toBeNull();
+
+    // A directory entry conveys existence only; the introduction is what
+    // makes the partnership visible on their side.
+    Http::assertSent(fn (ClientRequest $request): bool => $request->url() === 'https://openyacht.partner.example/openyacht/v1/partners/request'
+        && $request['contact_email'] === $actor->email);
+})->group('FP-16', 'FP-13');
 
 test('a domain outside the directory cannot be added through the directory path', function () {
     Storage::fake('local');
@@ -223,8 +239,6 @@ test('directory actions require the federation permission', function () {
 
 test('the node directory page shows findability and precomputed listing requests', function () {
     Storage::fake('local');
-    config(['openyacht.domain' => 'openyacht.this-node.example']);
-    app(KeyManager::class)->generate();
 
     Http::fake([
         NodeDirectoryIndex::CANONICAL_URL => Http::response([

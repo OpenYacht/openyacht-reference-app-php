@@ -252,26 +252,71 @@ test('timestamps outside the window are rejected as out of range', function () {
         ->assertJsonPath('error.code', 'TIMESTAMP_OUT_OF_RANGE');
 })->group('FP-8');
 
-test('a provisional partner can request partnership', function () {
-    FederationPartner::factory()->create([
-        'domain' => SENDER,
-        'keys_json' => senderWellKnown($this->keypair)['keys'],
-    ]);
-
+function senderPartnershipRequest(object $test, string $body)
+{
     $path = '/openyacht/v1/partners/request';
-    $body = '{"message":"Requesting partnership.","contact_email":"broker@sender.example"}';
 
-    $response = $this->call(
+    return $test->call(
         'POST',
         RECEIVER_BASE.$path,
-        server: collect(federationSignedHeaders(SENDER, $this->keypair['key_id'], $this->keypair['secret_key'], 'POST', $path, RECEIVER_HOST, $body))
+        server: collect(federationSignedHeaders(SENDER, $test->keypair['key_id'], $test->keypair['secret_key'], 'POST', $path, RECEIVER_HOST, $body))
             ->mapWithKeys(fn (string $value, string $name): array => ['HTTP_'.strtoupper(str_replace('-', '_', $name)) => $value])
             ->put('CONTENT_TYPE', 'application/json')
             ->all(),
         content: $body,
     );
+}
 
-    $response->assertStatus(202)->assertJsonPath('status', 'received');
+test('a provisional partner can request partnership, and its message and contact are stored for the approver', function () {
+    $partner = FederationPartner::factory()->create([
+        'domain' => SENDER,
+        'keys_json' => senderWellKnown($this->keypair)['keys'],
+    ]);
 
-    expect(Activity::query()->where('event', 'partner_request_received')->exists())->toBeTrue();
+    senderPartnershipRequest($this, '{"message":"  Requesting partnership. ","contact_email":"broker@sender.example"}')
+        ->assertStatus(202)
+        ->assertJsonPath('status', 'received')
+        ->assertJsonPath('trust_level', 'provisional');
+
+    expect($partner->refresh()->request_message)->toBe('Requesting partnership.')
+        ->and($partner->request_contact_email)->toBe('broker@sender.example')
+        ->and($partner->requested_at)->not->toBeNull()
+        ->and(Activity::query()->where('event', 'partner_request_received')->exists())->toBeTrue();
+})->group('FP-13');
+
+test('a partnership request is recorded even without a message or contact', function () {
+    // The receiver is deliberately lenient: the introduction is the
+    // signed request itself, not the body.
+    $partner = FederationPartner::factory()->create([
+        'domain' => SENDER,
+        'keys_json' => senderWellKnown($this->keypair)['keys'],
+    ]);
+
+    senderPartnershipRequest($this, '{}')->assertStatus(202);
+
+    expect($partner->refresh()->requested_at)->not->toBeNull()
+        ->and($partner->request_message)->toBeNull()
+        ->and($partner->request_contact_email)->toBeNull();
+})->group('FP-13');
+
+test('a first-contact partnership request registers the sender and stores its message', function () {
+    Notification::fake();
+    $this->seed(RoleSeeder::class);
+    $subscribed = tap(User::factory()->create(), fn (User $user) => $user->assignRole(Role::SuperAdmin));
+    Http::fake([
+        SENDER.'/.well-known/openyacht' => Http::response(senderWellKnown($this->keypair)),
+    ]);
+
+    senderPartnershipRequest($this, '{"message":"We would like to federate.","contact_email":"broker@sender.example"}')
+        ->assertStatus(202);
+
+    $partner = FederationPartner::query()->where('domain', SENDER)->firstOrFail();
+
+    expect($partner->trust_level)->toBe(TrustLevel::Provisional)
+        ->and($partner->request_message)->toBe('We would like to federate.')
+        ->and($partner->request_contact_email)->toBe('broker@sender.example');
+
+    // The first-contact mail is queued from the middleware and re-fetches
+    // the partner when it drains, so the stored message reaches it.
+    Notification::assertSentTo($subscribed, PartnerFirstContact::class);
 })->group('FP-13');
