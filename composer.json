@@ -4,12 +4,15 @@
     "type": "project",
     "description": "Reference implementation of the OpenYacht federation protocol: a complete Laravel node acting as both authority and consumer.",
     "keywords": [
-        "laravel",
-        "framework"
+        "openyacht",
+        "federation",
+        "reference-implementation",
+        "yachting",
+        "laravel"
     ],
     "license": "AGPL-3.0-only",
     "require": {
-        "php": "^8.3",
+        "php": "^8.4",
         "dedoc/scramble": "^0.13.42",
         "inertiajs/inertia-laravel": "^3.0",
         "intervention/image": "^4.2",
@@ -56,8 +59,8 @@
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
             "@php artisan key:generate",
             "@php artisan migrate --force",
-            "npm install",
-            "npm run build"
+            "pnpm install",
+            "pnpm run build"
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
@@ -71,16 +74,16 @@
         ],
         "ci:check": [
             "Composer\\Config::disableProcessTimeout",
-            "npm run lint:check",
-            "npm run format:check",
-            "npm run types:check",
+            "pnpm run lint:check",
+            "pnpm run format:check",
+            "pnpm run types:check",
             "@test"
         ],
         "preflight": [
             "Composer\\Config::disableProcessTimeout",
             "@lint",
-            "npm run lint",
-            "npm run format",
+            "pnpm run lint",
+            "pnpm run format",
             "@ci:check"
         ],
         "types:check": [

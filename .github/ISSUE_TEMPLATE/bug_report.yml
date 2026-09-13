@@ -1,0 +1,60 @@
+name: Bug report
+description: Something in this application behaves incorrectly.
+title: '[Bug] <short summary>'
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        If the behaviour disagrees with the protocol spec, use the "Conformance
+        gap" form instead — it asks for the conformance ID. Anything exploitable
+        goes through the security advisory link, not here.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: >-
+        The smallest sequence that shows it. A failing Pest test is the ideal
+        report — the suite is grouped by conformance ID, so a test named for the
+        behaviour it breaks carries both the report and the regression guard.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or version
+      description: The commit SHA you are running.
+    validations:
+      required: true
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database engine
+      options:
+        - SQLite
+        - MySQL 8
+        - MariaDB
+        - Other / not relevant
+    validations:
+      required: true
+  - type: input
+    id: php
+    attributes:
+      label: PHP version
+      placeholder: '8.4.3'
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: From `storage/logs/`. Redact keys, tokens, and partner data.
+      render: shell

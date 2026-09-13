@@ -1,0 +1,25 @@
+name: Enhancement
+description: A change to this application that is not a bug or a conformance gap.
+title: '[Enhancement] <short summary>'
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        This repository is reference material first. The bar is whether a change
+        makes the protocol mechanics easier to read and lift, not whether it adds
+        capability — a feature that obscures the mechanics is a cost even when it
+        works.
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should change
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why it helps an implementer
+      description: What a developer reading this app, or running a node, can do afterwards that they could not before.
+    validations:
+      required: true

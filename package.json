@@ -2,13 +2,13 @@
     "$schema": "https://www.schemastore.org/package.json",
     "private": true,
     "type": "module",
-    "packageManager": "pnpm@10.28.0",
+    "packageManager": "pnpm@12.4.1",
     "scripts": {
         "build": "vite build",
         "build:ssr": "vite build && vite build --ssr",
         "dev": "vite",
-        "format": "prettier --write resources/ README.md CLAUDE.md .ai/rules/ docs/api/",
-        "format:check": "prettier --check resources/ README.md CLAUDE.md .ai/rules/ docs/api/",
+        "format": "prettier --write resources/ README.md CLAUDE.md CONTRIBUTING.md SECURITY.md .ai/rules/ .github/ docs/api/",
+        "format:check": "prettier --check resources/ README.md CLAUDE.md CONTRIBUTING.md SECURITY.md .ai/rules/ .github/ docs/api/",
         "lint": "eslint . --fix",
         "lint:check": "eslint .",
         "types:check": "vue-tsc --noEmit"

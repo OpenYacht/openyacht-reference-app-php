@@ -1,0 +1,52 @@
+name: Conformance gap
+description: This application deviates from the protocol spec.
+title: '[Conformance] <conformance ID>: <short summary>'
+labels: ['conformance']
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        The spec is normative; this application implements it. Where they
+        disagree, this application is wrong — that is exactly the report we
+        want. If the spec itself is ambiguous or contradicts its own schemas,
+        that belongs in the protocol repository instead.
+  - type: input
+    id: conformance-id
+    attributes:
+      label: Conformance ID
+      description: From the spec's conformance checklist — e.g. FP-7, API-3, LS-15.
+      placeholder: 'FP-7'
+    validations:
+      required: true
+  - type: input
+    id: spec-reference
+    attributes:
+      label: Spec reference
+      description: Document and section carrying the requirement.
+      placeholder: 'federation-protocol.md §Request Signing'
+    validations:
+      required: true
+  - type: textarea
+    id: required
+    attributes:
+      label: What the spec requires
+      description: Quote or paraphrase the normative text.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What this application does instead
+      description: Include the file and line where the behaviour lives, if you found it.
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: Which role is affected?
+      options:
+        - Authority (serving own listings)
+        - Consumer (syncing partner listings)
+        - Both
+    validations:
+      required: true

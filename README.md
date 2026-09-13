@@ -36,7 +36,7 @@ Pending: an import connector for an incumbent feed, an installation wizard, and 
 ## Requirements
 
 - PHP 8.4+ with the `sodium` extension (Ed25519)
-- Composer, Node 22+, and a package manager (`pnpm` recommended)
+- Composer, Node 22+, and pnpm 12+ (`npm install --global pnpm`) — the `packageManager` pin in `package.json` decides the exact version from there. Do not launch pnpm through a distribution `corepack` package: older ones (Ubuntu ships 0.24) look for the `bin/pnpm.cjs` entry point pnpm dropped after v10 and fail with `Cannot find module …/bin/pnpm.cjs`.
 - SQLite (zero-config default) — MySQL 8 / MariaDB fully supported and CI-enforced
 
 ## Setup
@@ -60,7 +60,9 @@ Then set the node's identity in `.env`:
 
 Production needs the scheduler (hourly sync) and a queue worker (media imports).
 
-Email (password resets, federation alerts) defaults to the `log` mailer. For real delivery set `MAIL_MAILER=brevo` with a `BREVO_API_KEY` (Brevo's HTTP API — no SMTP credentials needed) and a real `MAIL_FROM_ADDRESS`; any other Laravel mail transport works the same way. If the Brevo account has authorised-IP security enabled, add the server's address (IPv6 included — that is usually the one outbound requests use) or every send fails with a 401 naming the unrecognised IP. Federation events needing a human — an unknown node introducing itself (FP-13) and a partner's node UUID changing (FP-11) — are emailed to users holding the _Receive federation notifications_ permission (super admins by default; tune it in the roles matrix). After upgrades that add permissions, re-run `php artisan db:seed --class=RoleSeeder` — it is idempotent and keeps super_admin holding every permission without touching a tuned matrix.
+Email (password resets, federation alerts) is ordinary Laravel mail: it defaults to the `log` mailer, and any transport works — set `MAIL_MAILER` to `smtp`, `ses`, `postmark`, `resend`, or `sendmail` with the matching credentials and a real `MAIL_FROM_ADDRESS`. A Brevo HTTP-API transport is registered alongside them (`MAIL_MAILER=brevo` with a `BREVO_API_KEY`) as one example of a provider that needs no SMTP credentials; nothing in the app depends on it.
+
+Federation events needing a human — an unknown node introducing itself (FP-13) and a partner's node UUID changing (FP-11) — are emailed to users holding the _Receive federation notifications_ permission (super admins by default; tune it in the roles matrix). After upgrades that add permissions, re-run `php artisan db:seed --class=RoleSeeder` — it is idempotent and keeps super_admin holding every permission without touching a tuned matrix.
 
 ## Deployment
 
@@ -91,10 +93,19 @@ apt update && apt install -y nginx certbot python3-certbot-nginx mysql-server su
 php8.5 -m | grep -q sodium || echo 'MISSING: sodium (required for Ed25519 signing)'
 
 curl -sS https://getcomposer.org/installer | php8.5 -- --install-dir=/usr/local/bin --filename=composer
-corepack enable
+
+# pnpm as a self-contained binary (it bundles its own Node), versioned in
+# its own directory so an upgrade is one more unpack and a symlink swap.
+PNPM_VERSION=12.4.1
+mkdir -p /usr/local/lib/pnpm-$PNPM_VERSION
+curl -fsSL https://github.com/pnpm/pnpm/releases/download/v$PNPM_VERSION/pnpm-linux-x64.tar.gz \
+  | tar xz -C /usr/local/lib/pnpm-$PNPM_VERSION
+ln -sfn /usr/local/lib/pnpm-$PNPM_VERSION/pnpm /usr/local/bin/pnpm
 ```
 
-Do **not** add the `npm` package on 26.04: the archive ships npm 9.2.0, whose `node-gyp` dependency pulls an unsatisfiable `libssl-dev` chain and aborts the entire `apt install`. Nothing here needs it — `nodejs` provides corepack, and `package.json` pins pnpm through its `packageManager` field, so corepack fetches the correct pnpm for whichever user runs the build. That pin is load-bearing: without it corepack resolves `pnpm@latest` independently per user, and current pnpm 11 both crashes on Node 22 and is a major ahead of this repo's lockfile.
+Do **not** add the `npm` package on 26.04: the archive ships npm 9.2.0, whose `node-gyp` dependency pulls an unsatisfiable `libssl-dev` chain and aborts the entire `apt install`. Nothing here needs it — the pnpm binary above is self-contained, and it reads the `packageManager` pin in `package.json` and runs exactly that version, so the server builds with the same pnpm as CI and the lockfile. That pin is load-bearing: without it every user resolves `pnpm@latest` independently and drifts ahead of the lockfile.
+
+Do not route the build through the distribution's `corepack` shim instead. Ubuntu ships corepack 0.24, which launches pnpm through the `bin/pnpm.cjs` entry point pnpm dropped after v10 — any pnpm 11 or newer dies there with `Cannot find module …/bin/pnpm.cjs`, whether corepack resolved it from the pin or from `pnpm@latest`.
 
 Redis is in that list because the application's defaults are deliberately dependency-free, not because they are the right production choice. Out of the box the cache, session, and queue drivers are all `database`, which keeps a fresh install to one moving part — but it means every request touches MySQL for its session, and the queue worker polls the `jobs` table every three seconds forever. On a production node, point all three at Redis in the shared `.env`:
 
@@ -186,7 +197,7 @@ The worker's default 60-second job timeout is far too short for a media import �
 
 Then, from a checkout: `DEPLOY_HOST=your.domain vendor/bin/dep deploy test`. Deployer needs PHP 8.4+ locally (the lockfile's floor) and shells out to `ssh`, so run it from a Unix shell — Windows OpenSSH implements no `ControlMaster`, and Deployer's default connection multiplexing fails there on every task with `getsockname failed: Not a socket`; from Windows, pass `-o ssh_multiplexing=false`. Point the connection at its key with an `~/.ssh/config` entry rather than editing `deploy.php`, which deliberately carries no one's local paths.
 
-The first run stops at the missing shared `.env`. Create it at `{{deploy_path}}/shared/.env` (`APP_KEY` via `php artisan key:generate --show`, database credentials, the `OPENYACHT_*` identity variables, Brevo mail, **and the Redis driver block above** — the provisioning script installed Redis for exactly this; leave it out and the node silently runs cache, sessions, and queue on MySQL forever), deploy again, then inside `current/` run once:
+The first run stops at the missing shared `.env`. Create it at `{{deploy_path}}/shared/.env` (`APP_KEY` via `php artisan key:generate --show`, database credentials, the `OPENYACHT_*` identity variables, mail credentials, **and the Redis driver block above** — the provisioning script installed Redis for exactly this; leave it out and the node silently runs cache, sessions, and queue on MySQL forever), deploy again, then inside `current/` run once:
 
 ```bash
 php artisan db:seed --class=RoleSeeder --force     # deploys migrate but never seed
@@ -215,6 +226,14 @@ Cross-database parity is enforced: both lanes run in CI, and engine-specific tra
 
 `resources/registry/` holds vendored copies of the shared-vocabulary registries (`builders.json`, `categories.json`, `destinations.json`) from the protocol repository. They are validation lists, updated out-of-band — never fetched at request time.
 
+## Contributing
+
+Bug reports, conformance gaps, and patches are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). The protocol itself is amended in the [protocol repository](https://github.com/OpenYacht/protocol), not here. Vulnerabilities go through [SECURITY.md](SECURITY.md), privately.
+
 ## License
 
+Copyright (C) 2026 The OpenYacht contributors.
+
 [AGPL-3.0-only](LICENSE). Run it, study it, lift the patterns — and if you operate a modified version as a network service, share your changes the same way.
+
+The protocol is nobody's property: the spec, schemas, and registries carry their own permissive licenses (CC-BY-4.0 and MIT) so any implementation, open or proprietary, can embed them verbatim. The copyleft here covers this application's source, not the protocol it speaks.

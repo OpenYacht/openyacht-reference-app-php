@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: The protocol itself
+    url: https://github.com/OpenYacht/protocol/issues
+    about: Errors, ambiguities, or conflicts in the spec, schemas, or registries — they affect every implementation, not just this one.
+  - name: About OpenYacht
+    url: https://openyacht.org
+    about: What the protocol is and why — read this first if you're new here.
+  - name: Security vulnerability
+    url: https://github.com/OpenYacht/openyacht-reference-app-php/security/advisories/new
+    about: Report privately. Never in a public issue.
