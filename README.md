@@ -36,7 +36,7 @@ Pending: an import connector for an incumbent feed, an installation wizard, and 
 ## Requirements
 
 - PHP 8.4+ with the `sodium` extension (Ed25519)
-- Composer, Node 22+, and pnpm 12+ (`npm install --global pnpm`) — the `packageManager` pin in `package.json` decides the exact version from there. Do not launch pnpm through a distribution `corepack` package: older ones (Ubuntu ships 0.24) look for the `bin/pnpm.cjs` entry point pnpm dropped after v10 and fail with `Cannot find module …/bin/pnpm.cjs`.
+- Composer, Node 22+, and pnpm (`npm install --global pnpm`) — the `packageManager` pin in `package.json` decides the exact version from there, so any recent pnpm is a fine launcher. Do not launch it through a distribution `corepack` package: those lag badly (Ubuntu ships 0.24, which cannot start any pnpm past v10 — it looks for a `bin/pnpm.cjs` entry point that no longer exists).
 - SQLite (zero-config default) — MySQL 8 / MariaDB fully supported and CI-enforced
 
 ## Setup
