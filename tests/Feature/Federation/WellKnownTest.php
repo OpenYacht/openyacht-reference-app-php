@@ -71,3 +71,48 @@ test('federation routes 404 when no identity domain is configured', function () 
 
     $this->get('https://openyacht.example.test/.well-known/openyacht')->assertNotFound();
 });
+
+/**
+ * .env.example ships OPENYACHT_NODE_NAME= and OPENYACHT_WEBSITE= blank, and
+ * env() returns '' rather than null for a key that is present but empty. A
+ * node that never filled them in must still publish a usable name and a
+ * website that is a URI or null — never the empty string, which
+ * well-known.schema.json does not allow for website.
+ */
+test('blank identity variables fall back instead of publishing empty strings', function () {
+    $restore = [
+        'OPENYACHT_NODE_NAME' => $_SERVER['OPENYACHT_NODE_NAME'] ?? null,
+        'OPENYACHT_WEBSITE' => $_SERVER['OPENYACHT_WEBSITE'] ?? null,
+        'APP_NAME' => $_SERVER['APP_NAME'] ?? null,
+    ];
+
+    $_SERVER['OPENYACHT_NODE_NAME'] = '';
+    $_SERVER['OPENYACHT_WEBSITE'] = '';
+    $_SERVER['APP_NAME'] = 'Harbourside Brokerage';
+
+    try {
+        $config = require config_path('openyacht.php');
+    } finally {
+        foreach ($restore as $key => $value) {
+            if ($value === null) {
+                unset($_SERVER[$key]);
+            } else {
+                $_SERVER[$key] = $value;
+            }
+        }
+    }
+
+    expect($config['node_name'])->toBe('Harbourside Brokerage')
+        ->and($config['website'])->toBeNull();
+
+    config([
+        'openyacht.domain' => 'openyacht.example.test',
+        'openyacht.node_name' => $config['node_name'],
+        'openyacht.website' => $config['website'],
+    ]);
+
+    $node = $this->get('https://openyacht.example.test/.well-known/openyacht')->json('node');
+
+    expect($node['name'])->toBe('Harbourside Brokerage')
+        ->and($node['website'])->toBeNull();
+})->group('FP-2');

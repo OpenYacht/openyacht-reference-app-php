@@ -32,9 +32,14 @@ return [
 
     'node_uuid' => env('OPENYACHT_NODE_UUID'),
 
-    'node_name' => env('OPENYACHT_NODE_NAME', env('APP_NAME', 'OpenYacht Node')),
+    // env() returns '' for a key that is present but blank — which is how
+    // .env.example ships both of these — so the fallbacks have to treat an
+    // empty string as unset. Otherwise a node that never filled them in
+    // publishes "name": "" to every partner, and a "website": "" that is
+    // neither a URI nor null (well-known.schema.json).
+    'node_name' => env('OPENYACHT_NODE_NAME') ?: env('APP_NAME') ?: 'OpenYacht Node',
 
-    'website' => env('OPENYACHT_WEBSITE'),
+    'website' => env('OPENYACHT_WEBSITE') ?: null,
 
     'software' => 'openyacht-reference/0.1',
 
