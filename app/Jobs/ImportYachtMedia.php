@@ -146,7 +146,6 @@ class ImportYachtMedia implements ShouldBeUnique, ShouldQueue
             ];
         }
 
-        /** @phpstan-ignore return.type (PHPStan reports the identical generic shape as a mismatch here) */
         return collect($images);
     }
 
