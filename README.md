@@ -43,7 +43,7 @@ Pending: an import connector for an incumbent feed, an installation wizard, and 
 
 ```bash
 composer setup            # install, .env, key, migrate, build
-php artisan openyacht:install   # mint the node UUID + initial federation keypair
+php artisan openyacht:install   # seed roles, mint the node UUID + first federation keypair
 php artisan openyacht:create-user   # create the first user — there is no self-registration
 ```
 
@@ -200,8 +200,7 @@ Then, from a checkout: `DEPLOY_HOST=your.domain vendor/bin/dep deploy test`. Dep
 The first run stops at the missing shared `.env`. Create it at `{{deploy_path}}/shared/.env` (`APP_KEY` via `php artisan key:generate --show`, database credentials, the `OPENYACHT_*` identity variables, mail credentials, **and the Redis driver block above** — the provisioning script installed Redis for exactly this; leave it out and the node silently runs cache, sessions, and queue on MySQL forever), deploy again, then inside `current/` run once:
 
 ```bash
-php artisan db:seed --class=RoleSeeder --force     # deploys migrate but never seed
-php artisan openyacht:install                      # node UUID + first federation keypair
+php artisan openyacht:install                      # roles, node UUID, first federation keypair
 php artisan optimize:clear && php artisan optimize  # REQUIRED, see below
 php artisan openyacht:create-user                  # interactive; needs a TTY
 ```

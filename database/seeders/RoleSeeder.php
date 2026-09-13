@@ -29,6 +29,13 @@ class RoleSeeder extends Seeder
             Permission::findOrCreate($permission->value);
         }
 
+        // Creating a permission normally flushes the registrar cache through
+        // a model event, but a caller may have muted those — DatabaseSeeder
+        // uses WithoutModelEvents. Forget again so the assignments below
+        // resolve the rows just written instead of a pre-creation cache,
+        // which otherwise fails with "there is no permission named ...".
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         foreach (RoleEnum::cases() as $roleEnum) {
             $role = Role::findOrCreate($roleEnum->value);
 

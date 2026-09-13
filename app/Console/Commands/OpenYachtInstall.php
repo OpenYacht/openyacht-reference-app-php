@@ -4,12 +4,14 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Services\Federation\KeyManager;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 
 /**
- * One-time node installation: generates the node UUID and the first
- * Ed25519 federation keypair. Idempotent — safe to re-run.
+ * One-time node installation: seeds the role hierarchy and generates the
+ * node UUID and the first Ed25519 federation keypair. Idempotent — safe to
+ * re-run.
  *
  * // federation-protocol.md §Identity and Trust Model, §Keys
  */
@@ -27,13 +29,21 @@ class OpenYachtInstall extends Command
      *
      * @var string
      */
-    protected $description = 'Generate the node UUID and initial federation keypair';
+    protected $description = 'Seed roles and generate the node UUID and initial federation keypair';
 
     public function handle(KeyManager $keys): int
     {
         if (! config('openyacht.domain')) {
             $this->warn('OPENYACHT_DOMAIN is not set. Set it in .env before going live — the identity domain is permanent in practice.');
         }
+
+        // The five-role hierarchy is part of a working installation, not
+        // demo data: without it the first openyacht:create-user fails on an
+        // unknown role and the node cannot be logged into at all. RoleSeeder
+        // is idempotent and re-asserts only the super_admin invariant, so a
+        // tuned matrix survives re-running this command.
+        $this->callSilently('db:seed', ['--class' => RoleSeeder::class, '--force' => true]);
+        $this->info('Roles and permissions seeded.');
 
         if (config('openyacht.node_uuid')) {
             $this->info('Node UUID already set: '.config('openyacht.node_uuid'));
