@@ -14,5 +14,6 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/**                                                        | .ai/rules/js.md                  |
 | database/migrations/**                                                 | .ai/rules/migrations.md          |
 | app/Models/*.php, app/Models/**                                        | .ai/rules/models.md              |
+| resources/schemas/**                                                   | .ai/rules/schemas.md             |
 | app/Services/Federation/**, app/Services/Federation/PartnerService.php | .ai/rules/services-federation.md |
 | app/Services/ChangeNotifier.php                                        | .ai/rules/services.md            |

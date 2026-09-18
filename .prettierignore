@@ -5,3 +5,6 @@ components.d.ts
 # Vendored verbatim from the protocol repo — must stay byte-identical
 # to the published registry files, never reformatted.
 resources/registry/*.json
+# Likewise the published JSON Schemas: the schema-drift workflow diffs
+# them against the protocol repo byte for byte.
+resources/schemas/v1/*.json

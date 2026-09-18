@@ -19,7 +19,7 @@ These are not preferences; they are the reasons the code reads the way it does. 
 - **Every user-facing string goes through a translation key** (`lang/en/*.php`, `__()` server-side, translated props into Inertia pages). English-only today; the discipline is what makes more locales a later milestone instead of a rewrite.
 - **Migrations must work on SQLite, MySQL 8, and MariaDB.** SQLite is the zero-config default and MySQL is CI-enforced. Watch `->change()`, enum alterations, JSON defaults, and DB-specific index syntax — the known traps are written up in `.ai/rules/migrations.md`.
 - **Copies of partner listings are never re-served.** They live in their own tables; `/listings` output is own listings only.
-- Vendored registry JSON under `resources/registry/` is byte-identical to the protocol repo and is `.prettierignore`d deliberately. Never reformat it; update it from upstream.
+- Vendored registry JSON under `resources/registry/` is byte-identical to the protocol repo and is `.prettierignore`d deliberately. Never reformat it; update it from upstream. The same holds for the published JSON Schemas under `resources/schemas/v1/`, which the conformance tests validate every emitted document against.
 
 ## Before you open a pull request
 

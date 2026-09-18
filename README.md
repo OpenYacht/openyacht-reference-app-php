@@ -225,6 +225,12 @@ Cross-database parity is enforced: both lanes run in CI, and engine-specific tra
 
 `resources/registry/` holds vendored copies of the shared-vocabulary registries (`builders.json`, `categories.json`, `destinations.json`) from the protocol repository. They are validation lists, updated out-of-band — never fetched at request time.
 
+## Vendored schemas and the drift check
+
+`resources/schemas/v1/` holds byte-identical copies of the protocol repository's published JSON Schemas. `tests/Feature/Federation/SchemaConformanceTest.php` validates every document the node emits — well-known, capabilities, errors, listings, tombstones, feed pages — against them, so the suite fails when output stops being well-formed, not only when behaviour changes.
+
+While the protocol is a draft it is amended without a version bump, so `protocol_versions` cannot tell a node it has fallen behind. The scheduled `schema-drift` workflow covers that: weekly it compares the vendored schemas with the published ones, and when they differ it runs the same conformance tests against the published copies and opens an issue naming what would fail. It never blocks a merge. To adopt an amendment, copy the published `schemas/v1` over `resources/schemas/v1` and fix what the suite then reports; a change to what a listing serves on the wire also needs a migration stamping `federation_updated_at` for the affected listings.
+
 ## Contributing
 
 Bug reports, conformance gaps, and patches are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). The protocol itself is amended in the [protocol repository](https://github.com/OpenYacht/protocol), not here. Vulnerabilities go through [SECURITY.md](SECURITY.md), privately.
