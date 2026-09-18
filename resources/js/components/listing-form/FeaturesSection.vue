@@ -34,6 +34,19 @@ defineProps<{ form: ListingForm }>();
                     placeholder="Air conditioning"
                 />
             </UFormField>
+            <UFormField
+                label="Qty"
+                class="w-20"
+                :error="form.errors[`features.${i}.quantity`]"
+            >
+                <UInput
+                    v-model.number="feature.quantity"
+                    type="number"
+                    min="1"
+                    step="1"
+                    class="w-full"
+                />
+            </UFormField>
             <UButton
                 color="error"
                 variant="ghost"
@@ -48,7 +61,14 @@ defineProps<{ form: ListingForm }>();
             size="xs"
             icon="i-lucide-plus"
             label="Add feature"
-            @click="form.features.push({ category: '', name: '', slug: '' })"
+            @click="
+                form.features.push({
+                    category: '',
+                    name: '',
+                    slug: '',
+                    quantity: null,
+                })
+            "
         />
     </div>
 </template>

@@ -94,6 +94,46 @@ test('an invented category slug is rejected, a vocabulary one carries its canoni
         ->toBe(['name' => 'Flybridge', 'slug' => 'flybridge']);
 })->group('LS-6');
 
+test('features store a count in quantity alone, null when unstated', function () {
+    $this->actingAs(yachtActor(Role::Editor))
+        ->post(route('yachts.store'), [
+            'name' => 'BAD QUANTITY',
+            'builder_slug' => 'benetti',
+            'features' => [['category' => 'toys', 'name' => 'Seabob', 'slug' => 'seabob', 'quantity' => 0]],
+            'specifications' => ['power_or_sail' => 'power'],
+        ])
+        ->assertSessionHasErrors('features.0.quantity');
+
+    $this->actingAs(yachtActor(Role::Editor))
+        ->post(route('yachts.store'), [
+            'name' => 'COUNTED TOYS',
+            'builder_slug' => 'benetti',
+            'features' => [
+                ['category' => 'toys', 'name' => 'Seabob', 'slug' => 'seabob', 'quantity' => '2'],
+                ['category' => '', 'name' => 'Air conditioning', 'slug' => '', 'quantity' => ''],
+            ],
+            'specifications' => ['power_or_sail' => 'power'],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect(SaleYacht::query()->firstOrFail()->features)->toEqual([
+        ['category' => 'toys', 'name' => 'Seabob', 'slug' => 'seabob', 'quantity' => 2],
+        ['category' => null, 'name' => 'Air conditioning', 'slug' => null, 'quantity' => null],
+    ]);
+})->group('LS-1');
+
+test('a category left blank is stored as null, never a nameless object', function () {
+    $this->actingAs(yachtActor(Role::Editor))
+        ->post(route('yachts.store'), [
+            'name' => 'NO CATEGORY',
+            'builder_slug' => 'benetti',
+            'specifications' => ['power_or_sail' => 'power', 'category' => ['name' => '', 'slug' => '']],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect(SaleYacht::query()->firstOrFail()->specifications['category'])->toBeNull();
+})->group('LS-1');
+
 test('an invented builder slug is rejected at data entry', function () {
     $this->actingAs(yachtActor(Role::Editor))
         ->post(route('yachts.store'), [

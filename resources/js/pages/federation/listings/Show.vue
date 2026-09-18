@@ -55,7 +55,12 @@ type Copy = {
     vessel: Record<string, unknown> | null;
     specifications: Record<string, unknown> | null;
     descriptions: { section: string | null; content: string }[];
-    features: { category: string | null; name: string; slug: string | null }[];
+    features: {
+        category: string | null;
+        name: string;
+        slug: string | null;
+        quantity?: number | null;
+    }[];
     brokers: Broker[];
     price_history: { amount: string; currency: string; changed_at: string }[];
     compliance: Record<string, unknown> | null;
@@ -203,7 +208,11 @@ const featureGroups = computed(() => {
     for (const feature of props.copy.features ?? []) {
         const category = feature.category ?? 'other';
 
-        groups.set(category, [...(groups.get(category) ?? []), feature.name]);
+        const label = feature.quantity
+            ? `${feature.name} × ${feature.quantity}`
+            : feature.name;
+
+        groups.set(category, [...(groups.get(category) ?? []), label]);
     }
 
     return [...groups.entries()].map(([category, names]) => ({

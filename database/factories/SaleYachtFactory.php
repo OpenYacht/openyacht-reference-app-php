@@ -53,7 +53,7 @@ class SaleYachtFactory extends Factory
                 ['section' => 'overview', 'content' => '<p>A fictional yacht used to test the OpenYacht federation protocol.</p>'],
             ],
             'features' => [
-                ['category' => 'comfort', 'name' => 'Air conditioning', 'slug' => 'air-conditioning'],
+                ['category' => 'comfort', 'name' => 'Air conditioning', 'slug' => 'air-conditioning', 'quantity' => null],
             ],
             'compliance' => [
                 'not_for_sale_to_us_residents_in_us_waters' => false,

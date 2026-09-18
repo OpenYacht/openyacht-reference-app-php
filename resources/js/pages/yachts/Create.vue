@@ -52,7 +52,12 @@ const form = useForm({
     previous_names: '',
     specifications: emptySpecifications(),
     descriptions: [{ section: 'overview', content: '' }],
-    features: [] as { category: string; name: string; slug: string }[],
+    features: [] as {
+        category: string;
+        name: string;
+        slug: string;
+        quantity: number | null;
+    }[],
     videos: [] as { url: string; caption: string }[],
     tours: [] as { url: string; caption: string }[],
     compliance: {

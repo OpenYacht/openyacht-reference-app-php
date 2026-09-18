@@ -69,7 +69,7 @@ class ListingSerializer
             'listing' => $this->listing($yacht, $granted(FieldGroup::Pricing), $granted(FieldGroup::LocationExact), $granted(FieldGroup::History)),
             'specifications' => $this->specifications($yacht),
             'descriptions' => array_values($yacht->descriptions ?? []),
-            'features' => array_values($yacht->features ?? []),
+            'features' => $this->features($yacht),
             'media' => $this->media($yacht, $granted(FieldGroup::Documents)),
             'charter' => $yacht instanceof CharterYacht
                 ? $this->charter($yacht, $granted(FieldGroup::Pricing))
@@ -227,6 +227,12 @@ class ListingSerializer
         $stored = $yacht->specifications ?? [];
         $complete = [];
 
+        // The vocab def anchors on a non-null name: a category stored
+        // without one is unknown, so it is null, never {name: null}.
+        if (! is_string(data_get($stored, 'category.name'))) {
+            $stored['category'] = null;
+        }
+
         foreach (self::SPECIFICATION_KEYS as $key) {
             $complete[$key] = $stored[$key] ?? match ($key) {
                 'cabin_config' => ['double' => null, 'twin' => null, 'triple' => null, 'single' => null, 'convertible' => null],
@@ -238,6 +244,30 @@ class ListingSerializer
         }
 
         return $complete;
+    }
+
+    /**
+     * Every feature carries all four keys (LS-1). quantity is an integer
+     * count ≥ 1, or null meaning "present, count unstated" — which is also
+     * what a row stored before the field existed serialises as.
+     *
+     * // listing-schema.md §Features
+     *
+     * @return array<int, array{category: string|null, name: string, slug: string|null, quantity: int|null}>
+     */
+    private function features(SaleYacht|CharterYacht $yacht): array
+    {
+        return collect($yacht->features ?? [])
+            ->map(fn (array $feature): array => [
+                'category' => $feature['category'] ?? null,
+                'name' => $feature['name'],
+                'slug' => $feature['slug'] ?? null,
+                'quantity' => is_int($feature['quantity'] ?? null) && $feature['quantity'] >= 1
+                    ? $feature['quantity']
+                    : null,
+            ])
+            ->values()
+            ->all();
     }
 
     /**

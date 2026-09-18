@@ -144,9 +144,9 @@ class FictionalInventorySeeder extends Seeder
                     ['section' => 'highlights', 'content' => '<ul><li>Invented for protocol testing</li><li>Registry-validated builder</li><li>No real-boat data</li></ul>'],
                 ],
                 'features' => [
-                    ['category' => 'comfort', 'name' => 'Air conditioning', 'slug' => 'air-conditioning'],
-                    ['category' => 'equipment', 'name' => 'Water maker', 'slug' => 'water-maker'],
-                    ['category' => 'toys', 'name' => 'Fictional tender', 'slug' => null],
+                    ['category' => 'comfort', 'name' => 'Air conditioning', 'slug' => 'air-conditioning', 'quantity' => null],
+                    ['category' => 'equipment', 'name' => 'Water maker', 'slug' => 'water-maker', 'quantity' => null],
+                    ['category' => 'toys', 'name' => 'Fictional tender', 'slug' => null, 'quantity' => null],
                 ],
                 'compliance' => ['not_for_sale_to_us_residents_in_us_waters' => false],
             ]);
@@ -213,8 +213,8 @@ class FictionalInventorySeeder extends Seeder
                     ['section' => 'overview', 'content' => "<p>{$entry['name']} is a fictional {$entry['model']} charter yacht that exists only to test the OpenYacht federation protocol. Any resemblance to a real vessel is coincidental.</p>"],
                 ],
                 'features' => [
-                    ['category' => 'comfort', 'name' => 'Air conditioning', 'slug' => 'air-conditioning'],
-                    ['category' => 'toys', 'name' => 'Fictional tender', 'slug' => null],
+                    ['category' => 'comfort', 'name' => 'Air conditioning', 'slug' => 'air-conditioning', 'quantity' => null],
+                    ['category' => 'toys', 'name' => 'Fictional tender', 'slug' => null, 'quantity' => null],
                 ],
                 'compliance' => ['not_for_sale_to_us_residents_in_us_waters' => false],
                 'rates' => $entry['rates'],

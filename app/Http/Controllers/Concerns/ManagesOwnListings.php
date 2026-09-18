@@ -185,7 +185,9 @@ trait ManagesOwnListings
 
     /**
      * A category chosen from the vendored vocabulary carries its canonical
-     * name; anything else is a free-text name with a null slug.
+     * name; anything else is a free-text name with a null slug. A category
+     * left blank is stored as null — the wire's vocab def anchors on a
+     * non-null name (LS-1).
      *
      * @return array<string, mixed>|null
      */
@@ -203,7 +205,38 @@ trait ManagesOwnListings
             $specifications['category']['name'] = app(CategoryVocabulary::class)->canonicalName($categorySlug);
         }
 
+        if (! is_string(data_get($specifications, 'category.name'))) {
+            $specifications['category'] = null;
+        }
+
         return $specifications;
+    }
+
+    /**
+     * Stored features mirror the wire shape, all four keys present. The
+     * count lives in quantity alone — null means "present, count
+     * unstated" (listing-schema.md §Features).
+     *
+     * @return array<int, array{category: string|null, name: string, slug: string|null, quantity: int|null}>|null
+     */
+    protected function featureAttributes(FormRequest $request): ?array
+    {
+        $features = $request->input('features');
+
+        if (! is_array($features)) {
+            return $features;
+        }
+
+        return collect($features)
+            ->filter(fn ($feature): bool => is_array($feature) && is_string($feature['name'] ?? null))
+            ->map(fn (array $feature): array => [
+                'category' => is_string($feature['category'] ?? null) ? $feature['category'] : null,
+                'name' => $feature['name'],
+                'slug' => is_string($feature['slug'] ?? null) ? $feature['slug'] : null,
+                'quantity' => is_numeric($feature['quantity'] ?? null) ? (int) $feature['quantity'] : null,
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -296,7 +329,7 @@ trait ManagesOwnListings
             'location_lon' => $request->input('location_lon'),
             'specifications' => $this->specificationsAttributes($request),
             'descriptions' => $this->sanitizedDescriptions($request),
-            'features' => $request->input('features'),
+            'features' => $this->featureAttributes($request),
             'compliance' => $request->input('compliance'),
             'videos' => $this->mediaLinkAttributes($request, 'videos'),
             'tours' => $this->mediaLinkAttributes($request, 'tours'),

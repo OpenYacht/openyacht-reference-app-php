@@ -48,7 +48,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property float|null $location_lon
  * @property array<string, mixed>|null $specifications
  * @property array<int, array{section: string|null, content: string}>|null $descriptions
- * @property array<int, array{category: string|null, name: string, slug: string|null}>|null $features
+ * @property array<int, array{category: string|null, name: string, slug: string|null, quantity?: int|null}>|null $features
  * @property array<string, mixed>|null $compliance
  * @property array<int, array{url: string, caption: string|null}>|null $videos
  * @property array<int, array{url: string, caption: string|null}>|null $tours

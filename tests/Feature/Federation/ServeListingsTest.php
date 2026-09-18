@@ -169,6 +169,54 @@ test('unknown builder, model, and location serialise as null, not empty objects'
         ->and($item['listing']['location'])->toBeNull();
 })->group('LS-1');
 
+test('every feature carries all four keys, quantity null when unstated or stored before the field existed', function () {
+    SaleYacht::factory()->active()->create([
+        'features' => [
+            ['category' => 'toys', 'name' => 'Seabob', 'slug' => 'seabob', 'quantity' => 2],
+            ['category' => 'comfort', 'name' => 'Air conditioning', 'slug' => 'air-conditioning'],
+            ['name' => 'Fictional tender'],
+        ],
+    ]);
+
+    expect(signedGet($this, '/openyacht/v1/listings')->json('data.0.features'))->toBe([
+        ['category' => 'toys', 'name' => 'Seabob', 'slug' => 'seabob', 'quantity' => 2],
+        ['category' => 'comfort', 'name' => 'Air conditioning', 'slug' => 'air-conditioning', 'quantity' => null],
+        ['category' => null, 'name' => 'Fictional tender', 'slug' => null, 'quantity' => null],
+    ]);
+})->group('LS-1');
+
+test('a category stored without a name serialises as null', function () {
+    SaleYacht::factory()->active()->create([
+        'specifications' => ['power_or_sail' => 'power', 'category' => ['name' => null, 'slug' => null]],
+    ]);
+
+    expect(signedGet($this, '/openyacht/v1/listings')->json('data.0.specifications'))
+        ->toHaveKey('category', null);
+})->group('LS-1');
+
+test('adopting feature quantity stamps exactly the listings whose wire form changed', function () {
+    $this->travelTo(now()->subDay());
+    $withFeatures = SaleYacht::factory()->active()->create();
+    $charterWithFeatures = CharterYacht::factory()->active()->create();
+    $namelessCategory = SaleYacht::factory()->active()->create([
+        'features' => [],
+        'specifications' => ['power_or_sail' => 'power', 'category' => ['name' => null, 'slug' => null]],
+    ]);
+    $unaffected = SaleYacht::factory()->active()->create(['features' => []]);
+    $tombstoned = SaleYacht::factory()->active()->create(['status' => ListingStatus::Sold]);
+    $this->travelBack();
+
+    $before = $unaffected->fresh()->federation_updated_at;
+
+    (require database_path('migrations/2026_09_18_200702_stamp_federation_updated_at_for_feature_quantity.php'))->up();
+
+    expect($withFeatures->fresh()->federation_updated_at->gt($before))->toBeTrue()
+        ->and($charterWithFeatures->fresh()->federation_updated_at->gt($before))->toBeTrue()
+        ->and($namelessCategory->fresh()->federation_updated_at->gt($before))->toBeTrue()
+        ->and($unaffected->fresh()->federation_updated_at->eq($before))->toBeTrue()
+        ->and($tombstoned->fresh()->federation_updated_at->gt($before))->toBeFalse();
+})->group('API-2');
+
 test('a listing with no imagery has a null profile, never a placeholder', function () {
     SaleYacht::factory()->active()->create();
 

@@ -58,7 +58,12 @@ type Yacht = {
     previous_names: string;
     specifications: Record<string, unknown>;
     descriptions: { section: string | null; content: string }[];
-    features: { category: string | null; name: string; slug: string | null }[];
+    features: {
+        category: string | null;
+        name: string;
+        slug: string | null;
+        quantity?: number | null;
+    }[];
     compliance: Record<string, unknown>;
     rates: Partial<RateForm>[];
     operating_areas: Partial<OperatingAreaForm>[];
@@ -186,6 +191,7 @@ const form = useForm({
         category: feature.category ?? '',
         name: feature.name,
         slug: feature.slug ?? '',
+        quantity: feature.quantity ?? null,
     })),
     videos: props.yacht.videos.map((video) => ({
         url: video.url,

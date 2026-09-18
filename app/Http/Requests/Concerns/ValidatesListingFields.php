@@ -139,6 +139,7 @@ trait ValidatesListingFields
             'features.*.category' => ['nullable', 'string', 'max:100'],
             'features.*.name' => ['required_with:features.*', 'string', 'max:255'],
             'features.*.slug' => ['nullable', 'string', 'max:100'],
+            'features.*.quantity' => ['nullable', 'integer', 'min:1'],
 
             // Videos & virtual tours: external-platform links (YouTube,
             // Vimeo, Matterport…), https like all wire media URLs.

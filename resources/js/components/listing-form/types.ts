@@ -116,7 +116,12 @@ export type SharedListingFields = {
     previous_names: string;
     specifications: SpecificationsForm;
     descriptions: { section: string; content: string }[];
-    features: { category: string; name: string; slug: string }[];
+    features: {
+        category: string;
+        name: string;
+        slug: string;
+        quantity: number | null;
+    }[];
     compliance: ComplianceForm;
     videos: MediaLinkForm[];
     tours: MediaLinkForm[];
