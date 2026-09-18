@@ -22,7 +22,7 @@ use Opis\JsonSchema\Validator;
  * catches a field the spec gained by amendment and the serializer never
  * adopted (LS-1).
  *
- * The scheduled schema-drift workflow runs this same file against the
+ * The scheduled protocol-drift workflow runs this same file against the
  * schemas as currently published, by pointing OPENYACHT_SCHEMAS_PATH at a
  * fresh checkout — so an amendment upstream is reported as the concrete
  * failures it would cause here.

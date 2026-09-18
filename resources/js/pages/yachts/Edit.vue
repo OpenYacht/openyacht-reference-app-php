@@ -6,7 +6,10 @@ import {
     emptySpecifications,
     normalizeCompliance,
 } from '@/components/listing-form/types';
-import type { SpecificationsForm } from '@/components/listing-form/types';
+import type {
+    FeatureVocabularyEntry,
+    SpecificationsForm,
+} from '@/components/listing-form/types';
 import ListingMediaManager from '@/components/ListingMediaManager.vue';
 import type { MediaItem } from '@/components/ListingMediaManager.vue';
 import ListingSharingCard from '@/components/ListingSharingCard.vue';
@@ -132,6 +135,7 @@ const props = defineProps<{
     yacht: Yacht;
     builders: { slug: string; name: string; country: string | null }[];
     categories: { slug: string; name: string }[];
+    featureVocabulary: FeatureVocabularyEntry[];
     map: { provider: 'openstreetmap' | 'mapbox'; mapbox_token: string | null };
     sharing: Sharing;
 }>();
@@ -294,6 +298,7 @@ const statusColor = (status: string) =>
                 :form="form"
                 :builders="builders"
                 :categories="categories"
+                :feature-vocabulary="featureVocabulary"
                 :map="map"
             />
 

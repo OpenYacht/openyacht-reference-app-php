@@ -5,6 +5,7 @@ use App\Enums\Role;
 use App\Models\FederationPartner;
 use App\Models\SaleYacht;
 use App\Models\User;
+use App\Services\Federation\FeatureRegistry;
 use App\Services\Federation\ListingSerializer;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Http\UploadedFile;
@@ -121,6 +122,53 @@ test('features store a count in quantity alone, null when unstated', function ()
         ['category' => null, 'name' => 'Air conditioning', 'slug' => null, 'quantity' => null],
     ]);
 })->group('LS-1');
+
+test('a feature slug is a registry claim: invented ones are rejected, the name stays the broker\'s', function () {
+    $this->actingAs(yachtActor(Role::Editor))
+        ->post(route('yachts.store'), [
+            'name' => 'INVENTED FEATURE',
+            'builder_slug' => 'benetti',
+            'features' => [['category' => 'toys', 'name' => 'Hoverboard', 'slug' => 'hoverboard-9000', 'quantity' => null]],
+            'specifications' => ['power_or_sail' => 'power'],
+        ])
+        ->assertSessionHasErrors('features.0.slug');
+
+    $this->actingAs(yachtActor(Role::Editor))
+        ->post(route('yachts.store'), [
+            'name' => 'LINKED FEATURES',
+            'builder_slug' => 'benetti',
+            'features' => [
+                // Linked: the broker reworded the name and category after the pick.
+                ['category' => 'toys', 'name' => 'Seabob F5 SR', 'slug' => 'seabob', 'quantity' => 2],
+                // "No link" chosen on purpose, though the name matches an entry exactly.
+                ['category' => 'comfort', 'name' => 'Air Conditioning', 'slug' => '', 'quantity' => null],
+            ],
+            'specifications' => ['power_or_sail' => 'power'],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect(SaleYacht::query()->firstOrFail()->features)->toEqual([
+        ['category' => 'toys', 'name' => 'Seabob F5 SR', 'slug' => 'seabob', 'quantity' => 2],
+        ['category' => 'comfort', 'name' => 'Air Conditioning', 'slug' => null, 'quantity' => null],
+    ]);
+})->group('LS-6');
+
+test('the listing forms receive the vendored feature vocabulary', function () {
+    $editor = yachtActor(Role::Editor);
+    $yacht = SaleYacht::factory()->create(['assigned_broker_id' => $editor->id]);
+    $vocabulary = app(FeatureRegistry::class)->all();
+
+    expect($vocabulary)->not->toBeEmpty()
+        ->and($vocabulary[0])->toHaveKeys(['slug', 'name', 'category']);
+
+    foreach ([route('yachts.create'), route('yachts.edit', $yacht)] as $url) {
+        $this->actingAs($editor)->get($url)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('featureVocabulary', count($vocabulary))
+                ->where('featureVocabulary.0', $vocabulary[0]));
+    }
+});
 
 test('a category left blank is stored as null, never a nameless object', function () {
     $this->actingAs(yachtActor(Role::Editor))

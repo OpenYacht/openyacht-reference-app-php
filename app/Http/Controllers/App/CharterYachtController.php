@@ -14,6 +14,7 @@ use App\Models\Vessel;
 use App\Services\Federation\BuilderRegistry;
 use App\Services\Federation\CategoryVocabulary;
 use App\Services\Federation\DestinationRegistry;
+use App\Services\Federation\FeatureRegistry;
 use App\Services\Federation\SharingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -77,13 +78,14 @@ class CharterYachtController extends Controller
         ]);
     }
 
-    public function create(BuilderRegistry $registry, CategoryVocabulary $categories, DestinationRegistry $destinations): Response
+    public function create(BuilderRegistry $registry, CategoryVocabulary $categories, FeatureRegistry $features, DestinationRegistry $destinations): Response
     {
         Gate::authorize('create', CharterYacht::class);
 
         return Inertia::render('charter-yachts/Create', [
             'builders' => $registry->all(),
             'categories' => $categories->all(),
+            'featureVocabulary' => $features->all(),
             'destinations' => $destinations->all(),
             'map' => $this->mapConfig(),
         ]);
@@ -110,7 +112,7 @@ class CharterYachtController extends Controller
         return to_route('charter-yachts.edit', $yacht);
     }
 
-    public function edit(CharterYacht $charterYacht, BuilderRegistry $registry, CategoryVocabulary $categories, DestinationRegistry $destinations): Response
+    public function edit(CharterYacht $charterYacht, BuilderRegistry $registry, CategoryVocabulary $categories, FeatureRegistry $features, DestinationRegistry $destinations): Response
     {
         Gate::authorize('update', $charterYacht);
 
@@ -179,6 +181,7 @@ class CharterYachtController extends Controller
             ],
             'builders' => $registry->all(),
             'categories' => $categories->all(),
+            'featureVocabulary' => $features->all(),
             'destinations' => $destinations->all(),
         ]);
     }

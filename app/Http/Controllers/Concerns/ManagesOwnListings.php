@@ -214,8 +214,12 @@ trait ManagesOwnListings
 
     /**
      * Stored features mirror the wire shape, all four keys present. The
-     * count lives in quantity alone — null means "present, count
-     * unstated" (listing-schema.md §Features).
+     * submitted slug is the vocabulary identity (validated against the
+     * vendored registry; blank stays unlinked even when the name matches
+     * an entry), while name and category are always the broker's own
+     * text — never overwritten with the registry's. The count lives in
+     * quantity alone — null means "present, count unstated"
+     * (listing-schema.md §Features).
      *
      * @return array<int, array{category: string|null, name: string, slug: string|null, quantity: int|null}>|null
      */

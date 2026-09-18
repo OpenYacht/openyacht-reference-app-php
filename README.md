@@ -223,13 +223,13 @@ Cross-database parity is enforced: both lanes run in CI, and engine-specific tra
 
 ## Vendored registries
 
-`resources/registry/` holds vendored copies of the shared-vocabulary registries (`builders.json`, `categories.json`, `destinations.json`) from the protocol repository. They are validation lists, updated out-of-band — never fetched at request time.
+`resources/registry/` holds vendored, byte-identical copies of the shared-vocabulary registries (`builders.json`, `categories.json`, `destinations.json`, `features.json`) from the protocol repository. They are validation lists, updated out-of-band — never fetched at request time. A slug on the wire is a vocabulary claim and is never invented: data entry offers the registry as a fixed choice, always with an unlisted escape hatch (free-text name, null slug). Features follow the slug-driven row — the vocabulary pick is a visible field that fills the name and category, both of which stay the broker's to reword.
 
 ## Vendored schemas and the drift check
 
 `resources/schemas/v1/` holds byte-identical copies of the protocol repository's published JSON Schemas. `tests/Feature/Federation/SchemaConformanceTest.php` validates every document the node emits — well-known, capabilities, errors, listings, tombstones, feed pages — against them, so the suite fails when output stops being well-formed, not only when behaviour changes.
 
-While the protocol is a draft it is amended without a version bump, so `protocol_versions` cannot tell a node it has fallen behind. The scheduled `schema-drift` workflow covers that: weekly it compares the vendored schemas with the published ones, and when they differ it runs the same conformance tests against the published copies and opens an issue naming what would fail. It never blocks a merge. To adopt an amendment, copy the published `schemas/v1` over `resources/schemas/v1` and fix what the suite then reports; a change to what a listing serves on the wire also needs a migration stamping `federation_updated_at` for the affected listings.
+While the protocol is a draft it is amended without a version bump, so `protocol_versions` cannot tell a node it has fallen behind. The scheduled `protocol-drift` workflow covers that: weekly it compares the vendored schemas with the published ones, and when they differ it runs the same conformance tests against the published copies and opens an issue naming what would fail. It compares the vendored registries too — a stale registry is not a conformance failure, but it makes a node reject slugs the published list now contains. It never blocks a merge. To adopt an amendment, copy the published `schemas/v1` over `resources/schemas/v1` and fix what the suite then reports; a change to what a listing serves on the wire also needs a migration stamping `federation_updated_at` for the affected listings.
 
 ## Contributing
 

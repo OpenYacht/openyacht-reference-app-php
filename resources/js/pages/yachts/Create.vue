@@ -5,12 +5,17 @@ import {
     emptySpecifications,
     normalizeCompliance,
 } from '@/components/listing-form/types';
+import type {
+    FeatureForm,
+    FeatureVocabularyEntry,
+} from '@/components/listing-form/types';
 import YachtForm from '@/components/YachtForm.vue';
 import { create, index, store } from '@/routes/yachts';
 
 defineProps<{
     builders: { slug: string; name: string; country: string | null }[];
     categories: { slug: string; name: string }[];
+    featureVocabulary: FeatureVocabularyEntry[];
     map: { provider: 'openstreetmap' | 'mapbox'; mapbox_token: string | null };
 }>();
 
@@ -52,12 +57,7 @@ const form = useForm({
     previous_names: '',
     specifications: emptySpecifications(),
     descriptions: [{ section: 'overview', content: '' }],
-    features: [] as {
-        category: string;
-        name: string;
-        slug: string;
-        quantity: number | null;
-    }[],
+    features: [] as FeatureForm[],
     videos: [] as { url: string; caption: string }[],
     tours: [] as { url: string; caption: string }[],
     compliance: {
@@ -96,6 +96,7 @@ const submit = () =>
                 :form="form"
                 :builders="builders"
                 :categories="categories"
+                :feature-vocabulary="featureVocabulary"
                 :map="map"
             />
 

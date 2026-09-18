@@ -11,6 +11,7 @@ import LocationSection from '@/components/listing-form/LocationSection.vue';
 import MediaLinksSection from '@/components/listing-form/MediaLinksSection.vue';
 import SpecificationsSections from '@/components/listing-form/SpecificationsSections.vue';
 import type {
+    FeatureVocabularyEntry,
     ListingForm,
     YachtFormFields,
 } from '@/components/listing-form/types';
@@ -20,6 +21,7 @@ import type { MapConfig } from '@/components/LocationMapPicker.vue';
 defineProps<{
     builders: { slug: string; name: string; country: string | null }[];
     categories: { slug: string; name: string }[];
+    featureVocabulary: FeatureVocabularyEntry[];
     map: MapConfig;
     form: ListingForm<YachtFormFields>;
 }>();
@@ -78,7 +80,7 @@ const currencies = ['EUR', 'USD', 'GBP', 'CHF', 'AUD'];
 
         <DescriptionsSection :form="form" />
 
-        <FeaturesSection :form="form" />
+        <FeaturesSection :form="form" :feature-vocabulary="featureVocabulary" />
 
         <MediaLinksSection :form="form" />
 

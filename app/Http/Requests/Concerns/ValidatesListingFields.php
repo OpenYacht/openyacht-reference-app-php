@@ -4,6 +4,7 @@ namespace App\Http\Requests\Concerns;
 
 use App\Services\Federation\BuilderRegistry;
 use App\Services\Federation\CategoryVocabulary;
+use App\Services\Federation\FeatureRegistry;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -179,6 +180,14 @@ trait ValidatesListingFields
 
         if (is_string($categorySlug) && $categorySlug !== '' && ! app(CategoryVocabulary::class)->has($categorySlug)) {
             $validator->errors()->add('specifications.category.slug', __('yachts.unknown_category_slug'));
+        }
+
+        foreach ((array) $this->input('features', []) as $index => $feature) {
+            $featureSlug = is_array($feature) ? ($feature['slug'] ?? null) : null;
+
+            if (is_string($featureSlug) && $featureSlug !== '' && ! app(FeatureRegistry::class)->has($featureSlug)) {
+                $validator->errors()->add("features.{$index}.slug", __('yachts.unknown_feature_slug'));
+            }
         }
     }
 }

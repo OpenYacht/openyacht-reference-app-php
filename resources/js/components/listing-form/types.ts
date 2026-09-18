@@ -116,12 +116,7 @@ export type SharedListingFields = {
     previous_names: string;
     specifications: SpecificationsForm;
     descriptions: { section: string; content: string }[];
-    features: {
-        category: string;
-        name: string;
-        slug: string;
-        quantity: number | null;
-    }[];
+    features: FeatureForm[];
     compliance: ComplianceForm;
     videos: MediaLinkForm[];
     tours: MediaLinkForm[];
@@ -150,6 +145,25 @@ export type RateForm = {
     vat_percent: number | null;
     valid_from: string;
     valid_to: string;
+};
+
+/**
+ * One feature row. slug is the vocabulary identity ('' = no link); name and
+ * category are the broker's own text and are never derived from it after
+ * the pick that filled them.
+ */
+export type FeatureForm = {
+    category: string;
+    name: string;
+    slug: string;
+    quantity: number | null;
+};
+
+/** An entry of the vendored well-known features list. */
+export type FeatureVocabularyEntry = {
+    slug: string;
+    name: string;
+    category: string;
 };
 
 export type OperatingAreaForm = {
@@ -296,6 +310,10 @@ export function emptyRate(): RateForm {
         valid_from: '',
         valid_to: '',
     };
+}
+
+export function emptyFeature(): FeatureForm {
+    return { category: '', name: '', slug: '', quantity: null };
 }
 
 export function emptyOperatingArea(): OperatingAreaForm {

@@ -3,6 +3,7 @@ import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
 import CharterYachtForm from '@/components/CharterYachtForm.vue';
 import type {
     CrewMemberForm,
+    FeatureVocabularyEntry,
     OperatingAreaForm,
     RateForm,
     SpecificationsForm,
@@ -142,6 +143,7 @@ const props = defineProps<{
     yacht: Yacht;
     builders: { slug: string; name: string; country: string | null }[];
     categories: { slug: string; name: string }[];
+    featureVocabulary: FeatureVocabularyEntry[];
     destinations: { slug: string; name: string; parent: string | null }[];
     map: { provider: 'openstreetmap' | 'mapbox'; mapbox_token: string | null };
     sharing: Sharing;
@@ -324,6 +326,7 @@ const statusColor = (status: string) =>
                 :form="form"
                 :builders="builders"
                 :categories="categories"
+                :feature-vocabulary="featureVocabulary"
                 :destinations="destinations"
                 :map="map"
             />

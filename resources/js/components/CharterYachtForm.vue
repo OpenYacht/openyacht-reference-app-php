@@ -11,6 +11,7 @@ import RatesSection from '@/components/listing-form/RatesSection.vue';
 import SpecificationsSections from '@/components/listing-form/SpecificationsSections.vue';
 import type {
     CharterYachtFormFields,
+    FeatureVocabularyEntry,
     ListingForm,
 } from '@/components/listing-form/types';
 import VesselSection from '@/components/listing-form/VesselSection.vue';
@@ -19,6 +20,7 @@ import type { MapConfig } from '@/components/LocationMapPicker.vue';
 defineProps<{
     builders: { slug: string; name: string; country: string | null }[];
     categories: { slug: string; name: string }[];
+    featureVocabulary: FeatureVocabularyEntry[];
     destinations: { slug: string; name: string; parent: string | null }[];
     map: MapConfig;
     form: ListingForm<CharterYachtFormFields>;
@@ -46,7 +48,7 @@ defineProps<{
 
         <DescriptionsSection :form="form" />
 
-        <FeaturesSection :form="form" />
+        <FeaturesSection :form="form" :feature-vocabulary="featureVocabulary" />
 
         <MediaLinksSection :form="form" />
 

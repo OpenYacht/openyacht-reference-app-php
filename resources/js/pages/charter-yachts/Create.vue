@@ -4,6 +4,8 @@ import CharterYachtForm from '@/components/CharterYachtForm.vue';
 import Heading from '@/components/Heading.vue';
 import type {
     CrewMemberForm,
+    FeatureForm,
+    FeatureVocabularyEntry,
     OperatingAreaForm,
     RateForm,
 } from '@/components/listing-form/types';
@@ -16,6 +18,7 @@ import { create, index, store } from '@/routes/charter-yachts';
 defineProps<{
     builders: { slug: string; name: string; country: string | null }[];
     categories: { slug: string; name: string }[];
+    featureVocabulary: FeatureVocabularyEntry[];
     destinations: { slug: string; name: string; parent: string | null }[];
     map: { provider: 'openstreetmap' | 'mapbox'; mapbox_token: string | null };
 }>();
@@ -54,12 +57,7 @@ const form = useForm({
     previous_names: '',
     specifications: emptySpecifications(),
     descriptions: [{ section: 'overview', content: '' }],
-    features: [] as {
-        category: string;
-        name: string;
-        slug: string;
-        quantity: number | null;
-    }[],
+    features: [] as FeatureForm[],
     videos: [] as { url: string; caption: string }[],
     tours: [] as { url: string; caption: string }[],
     compliance: {
@@ -104,6 +102,7 @@ const submit = () =>
                 :form="form"
                 :builders="builders"
                 :categories="categories"
+                :feature-vocabulary="featureVocabulary"
                 :destinations="destinations"
                 :map="map"
             />

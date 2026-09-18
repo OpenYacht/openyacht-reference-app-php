@@ -1,0 +1,153 @@
+name: protocol-drift
+
+# The protocol is amended without a version bump while it is a draft, so
+# protocol_versions never tells a node it has fallen behind, and the
+# registries are versioned files nobody is notified about. This compares
+# what is vendored here with what is currently published:
+#
+# - resources/schemas/v1 against schemas/v1. When they differ it runs the
+#   conformance tests against the published copies, so the issue it opens
+#   names the concrete defects ("/features/0: The required properties
+#   (quantity) are missing"), not just a diff.
+# - resources/registry against registry/. A stale registry is not a
+#   conformance failure, but it makes this node reject valid slugs at data
+#   entry. nodes.json is left out: the node directory is fetched, and the
+#   vendored copy is only its offline fallback.
+#
+# It never blocks a merge: the suite validates against the vendored files
+# and stays deterministic. To resolve an issue, copy the published files
+# over the vendored ones and fix whatever then fails.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout the published protocol
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: OpenYacht/protocol
+          path: .protocol
+          persist-credentials: false
+
+      - name: Compare vendored files with the published ones
+        id: compare
+        run: |
+          schemas=false
+          registry=false
+
+          diff -ru resources/schemas/v1 .protocol/schemas/v1 > schema.diff || schemas=true
+
+          : > registry.diff
+          for file in resources/registry/*.json; do
+            name=$(basename "$file")
+            [ "$name" = "nodes.json" ] && continue
+            diff -u "$file" ".protocol/registry/$name" >> registry.diff || registry=true
+          done
+
+          echo "schemas=$schemas" >> "$GITHUB_OUTPUT"
+          echo "registry=$registry" >> "$GITHUB_OUTPUT"
+          if [ "$schemas" = true ] || [ "$registry" = true ]; then
+            echo "drifted=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "drifted=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup PHP
+        if: steps.compare.outputs.schemas == 'true'
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install PHP dependencies
+        if: steps.compare.outputs.schemas == 'true'
+        # No JS build: the conformance tests only exercise the federation
+        # endpoints, which render JSON.
+        run: |
+          composer install --no-interaction --no-progress
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Run the conformance tests against the published schemas
+        if: steps.compare.outputs.schemas == 'true'
+        env:
+          OPENYACHT_SCHEMAS_PATH: ${{ github.workspace }}/.protocol/schemas/v1
+        run: |
+          php vendor/bin/pest --compact --colors=never tests/Feature/Federation/SchemaConformanceTest.php > conformance.txt 2>&1 \
+            && echo "The node's output still conforms to the published schemas — refreshing the vendored copies is all that is needed." > verdict.txt \
+            || echo "The node's output does NOT conform to the published schemas — see the test output below." > verdict.txt
+
+      - name: Open or update the drift issue
+        if: steps.compare.outputs.drifted == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: The published OpenYacht protocol files have moved ahead of this app
+          SCHEMAS: ${{ steps.compare.outputs.schemas }}
+          REGISTRY: ${{ steps.compare.outputs.registry }}
+        run: |
+          {
+            echo "The files vendored here no longer match [\`OpenYacht/protocol\`](https://github.com/OpenYacht/protocol)."
+            echo
+
+            if [ "$SCHEMAS" = true ]; then
+              echo "## Schemas — \`resources/schemas/v1\`"
+              echo
+              cat verdict.txt
+              echo
+              echo "To resolve: copy the published \`schemas/v1\` over \`resources/schemas/v1\`, run the suite, and fix what fails. A change to what a listing serves on the wire also needs a migration stamping \`federation_updated_at\` for the affected listings."
+              echo
+              echo "### Conformance tests against the published schemas"
+              echo
+              echo '```'
+              tail -n 120 conformance.txt
+              echo '```'
+              echo
+              echo "### Diff (vendored → published)"
+              echo
+              echo '```diff'
+              head -c 30000 schema.diff
+              echo '```'
+              echo
+            fi
+
+            if [ "$REGISTRY" = true ]; then
+              echo "## Registries — \`resources/registry\`"
+              echo
+              echo "Until refreshed, this node rejects slugs the published registries now contain. To resolve: copy the published \`registry/*.json\` over \`resources/registry/\` and run the suite."
+              echo
+              echo '```diff'
+              head -c 20000 registry.diff
+              echo '```'
+              echo
+            fi
+
+            echo "_Last checked by [this run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)._"
+          } > issue.md
+
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number')
+
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --repo "$GITHUB_REPOSITORY" --body-file issue.md
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file issue.md
+          fi
+
+      - name: Fail the run so the drift is visible
+        if: steps.compare.outputs.drifted == 'true'
+        run: exit 1
