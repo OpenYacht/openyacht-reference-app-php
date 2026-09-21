@@ -56,9 +56,14 @@ Then set the node's identity in `.env`:
 | `OPENYACHT_WEBSITE`                                 | Public website URL                                                                                |
 | `OPENYACHT_ATTRIBUTION_TEXT`                        | Attribution partners must display                                                                 |
 | `OPENYACHT_MEDIA_DISK`                              | Disk for imported-media renditions (`public` locally; S3/R2 via standard Laravel disks)           |
+| `MEDIA_DISK`                                        | Disk for the node's own listing media (`public` by default); read by spatie/laravel-medialibrary  |
 | `OPENYACHT_MAP_PROVIDER` / `OPENYACHT_MAPBOX_TOKEN` | Coordinate-picker map: OpenStreetMap needs no key; Mapbox upgrades tiles, 3D globe, and geocoding |
 
 Production needs the scheduler (hourly sync) and a queue worker (media imports).
+
+Both media disks are ordinary Laravel disks, so object storage is configuration, not code: fill in the `AWS_*` block and set the disk variable to `s3`. Any S3-compatible store works. For one that is not AWS — Cloudflare R2, MinIO, and the like — set `AWS_ENDPOINT` to the service's API endpoint _without_ the bucket name (Laravel appends the bucket itself, and a copied URL that already ends in it doubles it up), `AWS_DEFAULT_REGION` to whatever the provider expects (`auto` for R2), and `AWS_URL` to the bucket's public base URL including the scheme. Every media URL the node emits is built from `AWS_URL`, so leave the scheme off and they come out as relative paths that load nowhere. Files are written with public visibility; the bucket must be publicly readable at that URL.
+
+Moving media that already exists takes three steps in this order: copy the files to the new disk under the same paths, switch the variable, and rebuild the config cache. Imported media records only a path, so it follows `OPENYACHT_MEDIA_DISK` at once. Own listing media records the disk each file was written to, so `MEDIA_DISK` affects new uploads only and existing rows keep pointing at the old disk until they are updated — and because those URLs are part of what partners receive, the affected listings must also have `federation_updated_at` touched, or partners never re-fetch them. Either way the change happens outside the app, so nothing notifies webhook consumers: run `php artisan openyacht:notify-change` afterwards, or a statically built site keeps serving the old URLs — and breaks the moment the old files are removed.
 
 Email (password resets, federation alerts) is ordinary Laravel mail: it defaults to the `log` mailer, and any transport works — set `MAIL_MAILER` to `smtp`, `ses`, `postmark`, `resend`, or `sendmail` with the matching credentials and a real `MAIL_FROM_ADDRESS`. A Brevo HTTP-API transport is registered alongside them (`MAIL_MAILER=brevo` with a `BREVO_API_KEY`) as one example of a provider that needs no SMTP credentials; nothing in the app depends on it.
 
@@ -162,6 +167,21 @@ location ~ \.php$ {
     fastcgi_buffer_size 32k;
     fastcgi_buffers 16 32k;
     fastcgi_busy_buffers_size 64k;
+}
+```
+
+One more block is optional but worth having. With a single vhost and no `default_server`, nginx treats that vhost as the default, so over HTTPS the app answers for _any_ hostname pointed at the box — a retired domain, the bare IP, whatever a scanner sends. The app already refuses federation routes on any host but `OPENYACHT_DOMAIN`, so this is hardening rather than a protocol requirement. A catch-all placed beside the vhost rejects the TLS handshake before a certificate is sent and closes plain HTTP unanswered; every site hosted on the server then needs its own `server_name` block:
+
+```nginx
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+
+    ssl_reject_handshake on;           # nginx 1.19.4+
+    return 444;
 }
 ```
 
