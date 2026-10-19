@@ -217,6 +217,28 @@ test('adopting feature quantity stamps exactly the listings whose wire form chan
         ->and($tombstoned->fresh()->federation_updated_at->gt($before))->toBeFalse();
 })->group('API-2');
 
+test('builder slugs removed from the registry fall back to the name, stamping exactly the affected listings', function () {
+    $this->travelTo(now()->subDay());
+    $removed = Vessel::factory()->create(['builder_name' => 'Concept Marine', 'builder_slug' => 'concept']);
+    $onSale = SaleYacht::factory()->active()->create(['vessel_id' => $removed->id]);
+    $onCharter = CharterYacht::factory()->active()->create(['vessel_id' => $removed->id]);
+    $tombstoned = SaleYacht::factory()->active()->create(['vessel_id' => $removed->id, 'status' => ListingStatus::Sold]);
+    $unaffected = SaleYacht::factory()->active()->create();
+    $this->travelBack();
+
+    $before = $unaffected->fresh()->federation_updated_at;
+
+    (require database_path('migrations/2026_10_19_193425_null_builder_slugs_removed_from_registry_2026_10_0.php'))->up();
+
+    expect(signedGet($this, "/openyacht/v1/listings/{$onSale->uuid}")->json('vessel.builder'))
+        ->toBe(['name' => 'Concept Marine', 'slug' => null])
+        ->and($unaffected->fresh()->vessel->builder_slug)->toBe('benetti')
+        ->and($onSale->fresh()->federation_updated_at->gt($before))->toBeTrue()
+        ->and($onCharter->fresh()->federation_updated_at->gt($before))->toBeTrue()
+        ->and($tombstoned->fresh()->federation_updated_at->gt($before))->toBeFalse()
+        ->and($unaffected->fresh()->federation_updated_at->eq($before))->toBeTrue();
+})->group('LS-11', 'API-2');
+
 test('a listing with no imagery has a null profile, never a placeholder', function () {
     SaleYacht::factory()->active()->create();
 
