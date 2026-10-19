@@ -4,7 +4,9 @@ import { ref, useTemplateRef } from 'vue';
 defineOptions({ inheritAttrs: false });
 
 const showPassword = ref(false);
-const inputRef = useTemplateRef('inputRef');
+const inputRef = useTemplateRef<{ inputRef: HTMLInputElement | null }>(
+    'inputRef',
+);
 
 defineExpose({
     focus: () => inputRef.value?.inputRef?.focus(),
