@@ -8,6 +8,7 @@ use App\Models\CharterYacht;
 use App\Models\FederationPartner;
 use App\Models\SaleYacht;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Str;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
@@ -288,17 +289,17 @@ class ListingSerializer
 
         return [
             'profile' => $profile === null ? null : [
-                'url' => $profile->getFullUrl(),
+                'url' => $this->mediaUrl($profile),
                 'sha256' => $profile->getCustomProperty('sha256'),
                 'width' => $profile->getCustomProperty('width'),
                 'height' => $profile->getCustomProperty('height'),
                 'caption' => $profile->getCustomProperty('caption'),
-                'thumbnail_url' => $profile->getFullUrl('thumbnail'),
+                'thumbnail_url' => $this->mediaUrl($profile, 'thumbnail'),
             ],
             'gallery' => $yacht->getMedia('gallery')
                 ->values()
                 ->map(fn (Media $media, int $index): array => [
-                    'url' => $media->getFullUrl(),
+                    'url' => $this->mediaUrl($media),
                     'sha256' => $media->getCustomProperty('sha256'),
                     'category' => $media->getCustomProperty('category'),
                     'width' => $media->getCustomProperty('width'),
@@ -306,7 +307,7 @@ class ListingSerializer
                     'caption' => $media->getCustomProperty('caption'),
                     'sort' => $index + 1,
                     'thumbnail_url' => $media->hasGeneratedConversion('thumbnail')
-                        ? $media->getFullUrl('thumbnail')
+                        ? $this->mediaUrl($media, 'thumbnail')
                         : null,
                 ])
                 ->all(),
@@ -315,14 +316,14 @@ class ListingSerializer
             'layouts' => $yacht->getMedia('layouts')
                 ->values()
                 ->map(fn (Media $media, int $index): array => [
-                    'url' => $media->getFullUrl(),
+                    'url' => $this->mediaUrl($media),
                     'sha256' => $media->getCustomProperty('sha256'),
                     'width' => $media->getCustomProperty('width'),
                     'height' => $media->getCustomProperty('height'),
                     'caption' => $media->getCustomProperty('caption'),
                     'sort' => $index + 1,
                     'thumbnail_url' => $media->hasGeneratedConversion('thumbnail')
-                        ? $media->getFullUrl('thumbnail')
+                        ? $this->mediaUrl($media, 'thumbnail')
                         : null,
                 ])
                 ->all(),
@@ -351,7 +352,7 @@ class ListingSerializer
                 ? $yacht->getMedia('documents')
                     ->values()
                     ->map(fn (Media $media, int $index): array => [
-                        'url' => $media->getFullUrl(),
+                        'url' => $this->mediaUrl($media),
                         'sha256' => $media->getCustomProperty('sha256'),
                         'caption' => $media->getCustomProperty('caption'),
                         'sort' => $index + 1,
@@ -359,6 +360,28 @@ class ListingSerializer
                     ->all()
                 : [],
         ];
+    }
+
+    /**
+     * A media URL as the schema's uri format requires: every path segment
+     * percent-encoded. medialibrary encodes file names only on local disks;
+     * on object storage (S3, R2) a name like "côte — 01.jpg" would go out
+     * raw. Segments are decoded first so an already-encoded URL is left as
+     * it is.
+     *
+     * // listing-schema.md §Media
+     */
+    private function mediaUrl(Media $media, string $conversion = ''): string
+    {
+        $url = $media->getFullUrl($conversion);
+        $path = (string) parse_url($url, PHP_URL_PATH);
+
+        $encodedPath = implode('/', array_map(
+            fn (string $segment): string => rawurlencode(rawurldecode($segment)),
+            explode('/', $path),
+        ));
+
+        return Str::replaceFirst($path, $encodedPath, $url);
     }
 
     /**

@@ -158,6 +158,10 @@ test('a listing with no optional data at all still conforms', function () {
 })->group('LS-1');
 
 test('a listing carrying media conforms to the listing schema', function () {
+    // medialibrary percent-encodes file names only on local disks; an
+    // s3-driver disk (R2, S3) hands them through raw. The fake stays local
+    // underneath, so a non-ASCII name exercises the object-storage path.
+    config(['filesystems.disks.public.driver' => 's3']);
     Storage::fake('public');
     $this->seed(RoleSeeder::class);
 
@@ -167,7 +171,7 @@ test('a listing carrying media conforms to the listing schema', function () {
         'tours' => [['url' => 'https://tours.example/t/1', 'caption' => null]],
     ]);
 
-    foreach (['profile' => 'profile.jpg', 'gallery' => '01.jpg', 'layouts' => 'ga.jpg'] as $collection => $file) {
+    foreach (['profile' => 'profile.jpg', 'gallery' => 'Côte d’Azur — 01.jpg', 'layouts' => 'ga (deck 2).jpg'] as $collection => $file) {
         $this->actingAs($editor)
             ->post(route('yachts.media.store', $yacht), [
                 'collection' => $collection,

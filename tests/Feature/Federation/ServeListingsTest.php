@@ -7,6 +7,8 @@ use App\Models\FederationPartner;
 use App\Models\ListingCopy;
 use App\Models\SaleYacht;
 use App\Models\Vessel;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 const NODE_HOST = 'this-node.example';
 const NODE_BASE = 'https://this-node.example';
@@ -238,6 +240,30 @@ test('builder slugs removed from the registry fall back to the name, stamping ex
         ->and($tombstoned->fresh()->federation_updated_at->gt($before))->toBeFalse()
         ->and($unaffected->fresh()->federation_updated_at->eq($before))->toBeTrue();
 })->group('LS-11', 'API-2');
+
+test('encoding media URLs stamps exactly the listings whose URLs changed', function () {
+    config(['filesystems.disks.public.driver' => 's3']);
+    Storage::fake('public');
+
+    $this->travelTo(now()->subDay());
+    $accented = SaleYacht::factory()->active()->create();
+    $accented->addMedia(UploadedFile::fake()->image('x.jpg'))->usingFileName('côte-—-01.jpg')->toMediaCollection('gallery');
+    $plain = CharterYacht::factory()->active()->create();
+    $plain->addMedia(UploadedFile::fake()->image('x.jpg'))->usingFileName('plain-01.jpg')->toMediaCollection('gallery');
+    $tombstoned = SaleYacht::factory()->active()->create(['status' => ListingStatus::Withdrawn]);
+    $tombstoned->addMedia(UploadedFile::fake()->image('x.jpg'))->usingFileName('côte-02.jpg')->toMediaCollection('gallery');
+    $this->travelBack();
+
+    $before = $plain->fresh()->federation_updated_at;
+
+    (require database_path('migrations/2026_10_19_203359_stamp_federation_updated_at_for_encoded_media_urls.php'))->up();
+
+    expect(signedGet($this, "/openyacht/v1/listings/{$accented->uuid}")->json('media.gallery.0.url'))
+        ->toEndWith('/c%C3%B4te-%E2%80%94-01.jpg')
+        ->and($accented->fresh()->federation_updated_at->gt($before))->toBeTrue()
+        ->and($plain->fresh()->federation_updated_at->eq($before))->toBeTrue()
+        ->and($tombstoned->fresh()->federation_updated_at->gt($before))->toBeFalse();
+})->group('LS-8', 'API-2');
 
 test('a listing with no imagery has a null profile, never a placeholder', function () {
     SaleYacht::factory()->active()->create();
