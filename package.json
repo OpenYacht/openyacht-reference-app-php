@@ -40,7 +40,7 @@
         "@inertiajs/vue3": "^3.0.0",
         "@laravel/passkeys": "^0.2.0",
         "@nuxt/ui": "^4.11.0",
-        "@vueuse/core": "^14.4.0",
+        "@vueuse/core": "^15.0.0",
         "laravel-vite-plugin": "^3.0.0",
         "leaflet": "^1.9.4",
         "mapbox-gl": "^3.29.0",
