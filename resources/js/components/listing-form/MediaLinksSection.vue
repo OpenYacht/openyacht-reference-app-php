@@ -6,6 +6,14 @@
 import type { ListingForm } from '@/components/listing-form/types';
 
 defineProps<{ form: ListingForm }>();
+
+/*
+ * Bound from script rather than written as literal attributes: vue-tsc
+ * 3.3.12+ misreads `//` inside a template attribute as a comment and loses
+ * the v-for scope (vuejs/language-tools#6240). Inline them again once fixed.
+ */
+const videoUrlPlaceholder = 'https://vimeo.com/…';
+const tourUrlPlaceholder = 'https://my.matterport.com/show/…';
 </script>
 
 <template>
@@ -33,7 +41,7 @@ defineProps<{ form: ListingForm }>();
                     <UInput
                         v-model="video.url"
                         class="w-full"
-                        placeholder="https://vimeo.com/…"
+                        :placeholder="videoUrlPlaceholder"
                     />
                 </UFormField>
                 <UFormField label="Caption" class="w-56">
@@ -76,7 +84,7 @@ defineProps<{ form: ListingForm }>();
                     <UInput
                         v-model="tour.url"
                         class="w-full"
-                        placeholder="https://my.matterport.com/show/…"
+                        :placeholder="tourUrlPlaceholder"
                     />
                 </UFormField>
                 <UFormField label="Caption" class="w-56">
