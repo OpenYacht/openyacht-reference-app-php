@@ -215,4 +215,4 @@ This is the **OpenYacht PHP reference app** — reference material first, instal
 - **Commands**: standard Laravel/Vite — `composer install`, `pnpm install && pnpm build`, `php artisan test`, `vendor/bin/pint`. Before finishing any change run `composer preflight` (the CI-equivalent aggregate: fixers, then format check, `vue-tsc`, PHPStan, and the full Pest suite on SQLite).
 - The full setup and deployment recipe is in the [README](README.md).
 
-> This repository is developed on Windows + WSL2 + Laragon. The exact local binary paths, shell invocations, and deploy commands for that setup live in `CLAUDE.local.md` (gitignored); a contributor on another OS uses the standard commands above.
+> This repository is developed on Windows + Laragon. The exact local binary paths, shell invocations, and deploy commands for that setup live in `CLAUDE.local.md` (gitignored); a contributor on another OS uses the standard commands above.
