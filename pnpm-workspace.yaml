@@ -3,3 +3,11 @@ packages:
 
 publicHoistPattern:
   - '@inertiajs/core'
+
+# Security floors for transitive deps whose parents still pin a vulnerable
+# range. Drop each entry once the parent's own range allows the fix.
+overrides:
+  # GHSA-g7r4-m6w7-qqqr — fontless (via @nuxt/fonts) pins esbuild ^0.27
+  esbuild@<0.28.1: ^0.28.1
+  # GHSA-g3hv-75wg-m249 — @typescript-eslint/typescript-estree pins minimatch ^10
+  minimatch@>=7.0.0 <11.0.1: ^11.0.1
