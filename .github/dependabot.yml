@@ -1,40 +1,25 @@
 version: 2
+
+# Security updates only. `open-pull-requests-limit: 0` switches off routine
+# version-update PRs; Dependabot security updates (enabled in the repository
+# settings) are not affected by it and still open PRs for vulnerable
+# dependencies. Routine drift is still resolved upward ("always latest
+# stable everything"), by hand with `composer update` / `pnpm update`.
 updates:
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
       interval: 'weekly'
-    cooldown:
-      default-days: 5
-    groups:
-      github-actions:
-        patterns:
-          - '*'
+    open-pull-requests-limit: 0
 
-  # "Always latest stable everything" is a standing rule here: drift is
-  # resolved upward, never worked around. Minor and patch bumps arrive
-  # grouped so one PR carries the routine churn; majors come on their own
-  # because they need reading.
   - package-ecosystem: 'composer'
     directory: '/'
     schedule:
       interval: 'weekly'
-    cooldown:
-      default-days: 5
-    groups:
-      php-minor-and-patch:
-        update-types:
-          - 'minor'
-          - 'patch'
+    open-pull-requests-limit: 0
 
   - package-ecosystem: 'npm'
     directory: '/'
     schedule:
       interval: 'weekly'
-    cooldown:
-      default-days: 5
-    groups:
-      js-minor-and-patch:
-        update-types:
-          - 'minor'
-          - 'patch'
+    open-pull-requests-limit: 0
